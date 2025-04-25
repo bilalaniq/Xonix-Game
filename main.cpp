@@ -18,8 +18,8 @@ struct Enemy
     Enemy()
     {
         x = y = 300;
-        dx = 4 - rand() % 8;
-        dy = 4 - rand() % 8;
+        dx = 4 - rand() % 10;
+        dy = 4 - rand() % 10;
     }
 
     void move()
@@ -188,17 +188,18 @@ int main()
                     if (grid[i][j] == -1)
                         grid[i][j] = 0;
                     else
-                        grid[i][j] = 1;
+                        grid[i][j] = 1; // this will replace the 2 with the 1 in the grid
         }
 
-        for (int i = 0; i < enemyCount; i++) // if the enemy hits the players
+        for (int i = 0; i < enemyCount; i++) // if the enemy hits the players trail
             if (grid[a[i].y / ts][a[i].x / ts] == 2)
                 Game = false;
 
         /////////draw//////////
-        window.clear();
+        window.clear(); /// clear the window with black color so that the previous frame is not visible
 
         for (int i = 0; i < M; i++)
+        {
             for (int j = 0; j < N; j++)
             {
                 if (grid[i][j] == 0)
@@ -210,13 +211,15 @@ int main()
                 sTile.setPosition(j * ts, i * ts);
                 window.draw(sTile);
             }
+        }
 
-        sTile.setTextureRect(sf::IntRect(36, 0, ts, ts));
+        sTile.setTextureRect(sf::IntRect(36, 0, ts, ts)); // this is the sprite for the player
         sTile.setPosition(x * ts, y * ts);
         window.draw(sTile);
 
-        sEnemy.rotate(10);
-        for (int i = 0; i < enemyCount; i++)
+        sEnemy.rotate(20); // rotate the enemy sprite on its own axis set by  sEnemy.setOrigin(20, 20);
+
+        for (int i = 0; i < enemyCount; i++) // draw the enemies
         {
             sEnemy.setPosition(a[i].x, a[i].y);
             window.draw(sEnemy);

@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "numbers": "cpp",
+        "string": "cpp",
+        "format": "cpp"
+    }
+}

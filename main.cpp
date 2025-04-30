@@ -4,9 +4,28 @@
 #include <cstdlib>
 #include <string>
 #include <cstring>
+#include <SFML/Window.hpp>
 
-const int M = 25;
-const int N = 40;
+// Define game states
+enum GameState
+{
+    MENU,
+    PLAY,
+    GAMEOVER,
+    LEVELS,
+    MODES // Modes menu
+};
+GameState gameState = MENU;
+
+enum GameMode
+{
+    SINGLE_PLAYER, // 1P mode
+    TWO_PLAYER     // 2P mode
+};
+GameMode gameMode = SINGLE_PLAYER;
+
+const int M = 35;
+const int N = 55;
 
 int grid[M][N] = {0};
 int ts = 18;
@@ -95,6 +114,42 @@ int main()
 
     construct_boundry(); // for making the boundry constructed
 
+    sf::Texture menu_texture;
+    menu_texture.loadFromFile("images/menu_xonix_pic.png");
+    sf::Sprite menu_text(menu_texture);
+    menu_text.setPosition(50, 20);
+    menu_text.setScale(0.4f, 0.4f);
+
+    sf::Texture menu_controller_texture;
+    menu_controller_texture.loadFromFile("images/controller_pic.jpg");
+    sf::Sprite menu_controller(menu_controller_texture);
+    menu_controller.setPosition(550, 170);
+    menu_controller.setScale(0.6f, 0.6f);
+
+    sf::Texture start_buton_texture;
+    start_buton_texture.loadFromFile("images/start_button.png");
+    sf::Sprite start_button(start_buton_texture);
+    start_button.setPosition(50, 150);
+    start_button.setScale(0.5f, 0.5f);
+
+    sf::Texture level_buton_texture;
+    level_buton_texture.loadFromFile("images/levels.png");
+    sf::Sprite level_button(level_buton_texture);
+    level_button.setPosition(50, 280);
+    level_button.setScale(1.4f, 1.4f);
+
+    sf::Texture mode_buton_texture;
+    mode_buton_texture.loadFromFile("images/modes.png");
+    sf::Sprite mode_button(mode_buton_texture);
+    mode_button.setPosition(50, 390);
+    mode_button.setScale(1.4f, 1.4f);
+
+    sf::Texture stop_buton_texture;
+    stop_buton_texture.loadFromFile("images/stop_button.png");
+    sf::Sprite stop_button(stop_buton_texture);
+    stop_button.setPosition(50, 500);
+    stop_button.setScale(0.5, 0.5f);
+
     while (window.isOpen())
     {
         float time = clock.getElapsedTime().asSeconds();
@@ -110,6 +165,18 @@ int main()
             if (e.type == sf::Event::Closed) // when exiting the game
                 window.close();
 
+            if (gameState == MENU)
+            {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter))
+                {
+                    gameState = PLAY; // Start the game
+                }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
+                {
+                    window.close(); // Exit the game
+                }
+            }
+
             if (e.type == sf::Event::KeyPressed)
                 if (e.key.code == sf::Keyboard::Escape) // press escape to restart the game
                 {
@@ -121,6 +188,23 @@ int main()
                     y = 0;
                     Game = true;
                 }
+        }
+
+        if (gameState == MENU)
+        {
+            // Clear the window with a white background
+            window.clear(sf::Color::White);
+
+            // Draw the menu elements
+
+            window.draw(menu_text);
+            window.draw(menu_controller);
+            window.draw(start_button);
+            window.draw(level_button);
+            window.draw(mode_button);
+            window.draw(stop_button);
+            window.display();
+            continue;
         }
 
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))

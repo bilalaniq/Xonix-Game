@@ -1,0 +1,3 @@
+/mnt/c/Users/bilal/Videos/fast_project/game/build/CMakeFiles/xonix.dir
+/mnt/c/Users/bilal/Videos/fast_project/game/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/bilal/Videos/fast_project/game/build/CMakeFiles/rebuild_cache.dir

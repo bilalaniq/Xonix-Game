@@ -5,6 +5,7 @@
 #include <string>
 #include <cstring>
 #include <SFML/Window.hpp>
+#include <iostream>
 
 // Define game states
 enum GameState
@@ -37,8 +38,8 @@ struct Enemy
     Enemy()
     {
         x = y = 300;
-        dx = 4 - rand() % 10;
-        dy = 4 - rand() % 10;
+        dx = 4 - rand() % 11;
+        dy = 4 - rand() % 11;
     }
 
     void move()
@@ -141,14 +142,32 @@ int main()
     sf::Texture mode_buton_texture;
     mode_buton_texture.loadFromFile("images/modes.png");
     sf::Sprite mode_button(mode_buton_texture);
-    mode_button.setPosition(50, 390);
-    mode_button.setScale(1.4f, 1.4f);
+    mode_button.setPosition(50, 390); // Ensure this is correct
+    mode_button.setScale(1.4f, 1.4f); // Ensure this is correct
 
     sf::Texture stop_buton_texture;
     stop_buton_texture.loadFromFile("images/stop_button.png");
     sf::Sprite stop_button(stop_buton_texture);
     stop_button.setPosition(50, 500);
     stop_button.setScale(0.5, 0.5f);
+
+    sf::Texture _1p_buton_texture;
+    _1p_buton_texture.loadFromFile("images/1p.png");
+    sf::Sprite _1p_button(_1p_buton_texture);
+    _1p_button.setPosition(50, 200);
+    _1p_button.setScale(0.5, 0.5f);
+
+    sf::Texture _2p_buton_texture;
+    _2p_buton_texture.loadFromFile("images/2p.png");
+    sf::Sprite _2p_button(_2p_buton_texture);
+    _2p_button.setPosition(670, 200);
+    _2p_button.setScale(0.5, 0.5f);
+
+    sf::Texture back_button_texture;
+    back_button_texture.loadFromFile("images/back.png");
+    sf::Sprite back_button(back_button_texture);
+    back_button.setPosition(50, 50);
+    back_button.setScale(0.1, 0.1f);
 
     while (window.isOpen())
     {
@@ -160,6 +179,7 @@ int main()
         // different performance levels.
 
         sf::Event e;
+
         while (window.pollEvent(e))
         {
             if (e.type == sf::Event::Closed) // when exiting the game
@@ -192,11 +212,65 @@ int main()
 
         if (gameState == MENU)
         {
-            // Clear the window with a white background
-            window.clear(sf::Color::White);
+            sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+            const float hoverScale = 0.52f;
+            const float normalScale = 0.5f;
+
+            sf::Vector2f currentScale_start = start_button.getScale();
+
+            // "Start" button
+            if (start_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
+            {
+                if (currentScale_start.x < hoverScale)
+                    start_button.setScale(currentScale_start.x + 0.01f, currentScale_start.y + 0.01f);
+            }
+            else
+            {
+                if (currentScale_start.x > normalScale)
+                    start_button.setScale(currentScale_start.x - 0.01f, currentScale_start.y - 0.01f);
+            }
+
+            // sf::Vector2f currentScale = mode_button.getScale();
+
+            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+            {
+                // Get the mouse position relative to the window
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                // Handle "Start" button click
+                if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                {
+                    gameState = PLAY; // Transition to PLAY state
+                }
+            }
+
+            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+            {
+                // Get the mouse position relative to the window
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                // Handle "Levels" button click
+                if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                {
+                    gameState = LEVELS; // Transition to LEVELS state
+                }
+            }
+
+            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+            {
+                // Get the mouse position relative to the window
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                {
+                    std::cout << "Mode button clicked!" << std::endl;
+                    gameState = MODES;
+                }
+            }
 
             // Draw the menu elements
-
+            window.clear(sf::Color::White);
             window.draw(menu_text);
             window.draw(menu_controller);
             window.draw(start_button);
@@ -205,6 +279,44 @@ int main()
             window.draw(stop_button);
             window.display();
             continue;
+        }
+
+        if (gameState == MODES)
+        {
+
+            window.clear(sf::Color(50, 158, 168));
+            sf::Event e2;
+
+            if (e2.type == sf::Event::MouseButtonPressed && e2.mouseButton.button == sf::Mouse::Left)
+            {
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                if (_1p_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
+                {   
+                    gameMode = SINGLE_PLAYER;
+                    gameState = PLAY;
+                }
+                if (_2p_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
+                {
+                    gameMode = TWO_PLAYER;
+                    gameState = PLAY;
+                }
+                if (back_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
+                {
+                    gameState = MENU;
+                }
+            }
+
+            window.draw(_1p_button);
+            window.draw(_2p_button);
+            window.draw(back_button);
+
+            window.display();
+            continue;
+        }
+
+        if (gameState == LEVELS)
+        {
         }
 
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))

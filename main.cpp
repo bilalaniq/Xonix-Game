@@ -16,14 +16,58 @@ enum GameState
     LEVELS,
     MODES // Modes menu
 };
-GameState gameState = MENU;
 
 enum GameMode
 {
     SINGLE_PLAYER, // 1P mode
     TWO_PLAYER     // 2P mode
 };
+
+enum GameLevel
+{
+    LEVEL_ONE,
+    LEVEL_TWO,
+    LEVEL_THREE
+};
+
+enum difficulty
+{
+    EASY,
+    MEDIUM,
+    HARD,
+    continuous
+};
+
+enum movement_type
+{
+    LINEAR,
+    ZIG_ZAG,
+    CIRCULAR
+};
+
+GameState gameState = MENU;
+
+difficulty gameDifficulty = EASY; // Default difficulty
+
+GameLevel gameLevel = LEVEL_ONE; // Default level
+
 GameMode gameMode = SINGLE_PLAYER;
+
+float continuousModeTimer = 0; // Timer for adding enemies in Continuous Mode
+
+float enemySpeed_timer = 0;
+
+float enemy_movement_timer = 0;
+
+size_t movementCounter_1p = 0; // Counter for movements
+size_t movementCounter_2p = 0; // Counter for movements
+
+size_t _1p_points = 0;
+size_t _2p_points = 0;
+
+// bool streak;
+
+int elapsedTime = 0; // Elapsed time for the game
 
 const int M = 35;
 const int N = 55;
@@ -31,9 +75,13 @@ const int N = 55;
 int grid[M][N] = {0};
 int ts = 18;
 
+size_t score_1p = 0;
+size_t score_2p = 0;
+
 struct Enemy
 {
     int x, y, dx, dy;
+    movement_type movement = LINEAR; // Default movement type
 
     Enemy()
     {
@@ -42,20 +90,98 @@ struct Enemy
         dy = 4 - rand() % 11;
     }
 
+    // Default movement type
+
     void move()
     {
-        x += dx;
-        if (grid[y / ts][x / ts] == 1) // if the enemy hits the wall
+        if (movement == LINEAR)
         {
-            dx = -dx;
             x += dx;
-        }
-        y += dy;
-        if (grid[y / ts][x / ts] == 1) // if the enemy hits the wall
-        {
-            dy = -dy;
+
+            if (grid[y / ts][x / ts] == 1) // If the enemy hits the wall
+            {
+                dx = -dx;
+                x += dx;
+            }
             y += dy;
+            if (grid[y / ts][x / ts] == 1) // If the enemy hits the wall
+            {
+                dy = -dy;
+                y += dy;
+            }
         }
+        else if (movement == ZIG_ZAG)
+        {
+            zig_zag();
+        }
+        else if (movement == CIRCULAR)
+        {
+            circular();
+        }
+    }
+
+    void zig_zag()
+    {
+        static int frameCount = 0;
+        static bool goingRight = true;
+        static int verticalDir = 1; // 1 = down, -1 = up
+
+        const int zigzagInterval = 50;
+        frameCount++;
+
+        if (frameCount >= zigzagInterval)
+        {
+            goingRight = !goingRight;
+            frameCount = 0;
+        }
+
+        int move_dx = goingRight ? 5 : -5;
+        int move_dy = verticalDir * 2;
+
+        // Add jitter for randomness
+        move_dx += rand() % 3 - 1;
+        move_dy += rand() % 3 - 1;
+
+        int new_x = x + move_dx;
+        int new_y = y + move_dy;
+
+        // Check if the new position is within bounds
+        if (new_x >= 0 && new_x < N * ts && new_y >= 0 && new_y < M * ts)
+        {
+            // Move the enemy only if within bounds
+            if (grid[new_y / ts][new_x / ts] != 1)
+            {
+                x = new_x;
+                y = new_y;
+            }
+            else
+            {
+                // If it hits a wall, reverse direction
+                goingRight = !goingRight;
+                verticalDir *= -1;
+                frameCount = 0;
+            }
+        }
+        else
+        {
+            // If out of bounds, reverse direction but don't move
+            goingRight = !goingRight;
+            verticalDir *= -1;
+        }
+    }
+
+    void circular()
+    {
+        static float angle = 0.0f;
+        angle += 0.05f;
+
+        int radius = 60;
+        int cx = 300, cy = 300; // Circle center
+
+        x = cx + static_cast<int>(radius * cos(angle));
+        y = cy + static_cast<int>(radius * sin(angle));
+
+        // Don't reverse dx/dy here — position is directly set
     }
 };
 
@@ -105,8 +231,8 @@ int main()
     // If the origin is at the center of the sprite, the rotation looks natural.
     // If the origin is at the top-left corner (default), the sprite rotates around that corner, which can look strange.
 
-    int enemyCount = 4;
-    Enemy a[10];
+    int enemyCount = 2;
+    Enemy a[18];
 
     bool Game = true;
     int x = 0, y = 0, dx = 0, dy = 0;
@@ -122,7 +248,7 @@ int main()
     menu_text.setScale(0.4f, 0.4f);
 
     sf::Texture menu_controller_texture;
-    menu_controller_texture.loadFromFile("images/controller_pic.jpg");
+    menu_controller_texture.loadFromFile("images/controller.jpg");
     sf::Sprite menu_controller(menu_controller_texture);
     menu_controller.setPosition(550, 170);
     menu_controller.setScale(0.6f, 0.6f);
@@ -142,8 +268,8 @@ int main()
     sf::Texture mode_buton_texture;
     mode_buton_texture.loadFromFile("images/modes.png");
     sf::Sprite mode_button(mode_buton_texture);
-    mode_button.setPosition(50, 390); // Ensure this is correct
-    mode_button.setScale(1.4f, 1.4f); // Ensure this is correct
+    mode_button.setPosition(50, 390);
+    mode_button.setScale(1.4f, 1.4f);
 
     sf::Texture stop_buton_texture;
     stop_buton_texture.loadFromFile("images/stop_button.png");
@@ -154,20 +280,114 @@ int main()
     sf::Texture _1p_buton_texture;
     _1p_buton_texture.loadFromFile("images/1p.png");
     sf::Sprite _1p_button(_1p_buton_texture);
-    _1p_button.setPosition(50, 200);
+    _1p_button.setPosition(50, 70);
     _1p_button.setScale(0.5, 0.5f);
 
     sf::Texture _2p_buton_texture;
     _2p_buton_texture.loadFromFile("images/2p.png");
     sf::Sprite _2p_button(_2p_buton_texture);
-    _2p_button.setPosition(670, 200);
+    _2p_button.setPosition(670, 70);
     _2p_button.setScale(0.5, 0.5f);
+
+    sf::Texture easy_buton_texture;
+    easy_buton_texture.loadFromFile("images/easy.png");
+    sf::Sprite easy_button(easy_buton_texture);
+    easy_button.setPosition(350, 150);
+    easy_button.setScale(1.2, 1.2f);
+
+    sf::Texture medium_buton_texture;
+    medium_buton_texture.loadFromFile("images/medium.png");
+    sf::Sprite medium_button(medium_buton_texture);
+    medium_button.setPosition(350, 250);
+    medium_button.setScale(1.2, 1.2f);
+
+    sf::Texture hard_buton_texture;
+    hard_buton_texture.loadFromFile("images/hard.png");
+    sf::Sprite hard_button(hard_buton_texture);
+    hard_button.setPosition(350, 350);
+    hard_button.setScale(1.2, 1.2f);
+
+    sf::Texture ContinuousMode;
+    ContinuousMode.loadFromFile("images/ContinuousMode.png");
+    sf::Sprite continuous_button(ContinuousMode);
+    continuous_button.setPosition(350, 50);
+    continuous_button.setScale(1.7, 1.7f);
 
     sf::Texture back_button_texture;
     back_button_texture.loadFromFile("images/back.png");
-    sf::Sprite back_button(back_button_texture);
-    back_button.setPosition(50, 50);
-    back_button.setScale(0.1, 0.1f);
+    sf::Sprite back_button_mode(back_button_texture);
+    back_button_mode.setPosition(350, 450);
+    back_button_mode.setScale(1.2, 1.2f);
+
+    sf::Sprite back_button_level(back_button_texture);
+    back_button_level.setPosition(350, 500);
+    back_button_level.setScale(1.2, 1.2f);
+
+    sf::Texture levle_one_texture;
+    levle_one_texture.loadFromFile("images/1.png");
+    sf::Sprite level_one(levle_one_texture);
+    level_one.setPosition(50, 200);
+    level_one.setScale(0.5, 0.5f);
+
+    sf::Texture level_two_texture;
+    level_two_texture.loadFromFile("images/2.png");
+    sf::Sprite level_two(level_two_texture);
+    level_two.setPosition(400, 200);
+    level_two.setScale(0.5, 0.5f);
+
+    sf::Texture level_three_texture;
+    level_three_texture.loadFromFile("images/3.png");
+    sf::Sprite level_three(level_three_texture);
+    level_three.setPosition(700, 200);
+    level_three.setScale(0.5, 0.5f);
+
+    sf::Font font;
+    if (!font.loadFromFile("images/Arial.ttf"))
+    {
+        std::cerr << "Error loading font!" << std::endl;
+        return -1;
+    }
+
+    sf::Text text1("select level", font, 50);
+    text1.setFillColor(sf::Color::Black);
+    text1.setPosition(50, 50);
+    text1.setStyle(sf::Text::Bold);
+
+    sf::Text movement_CounterText_1p;
+    movement_CounterText_1p.setFont(font);                      // Set the font
+    movement_CounterText_1p.setCharacterSize(20);               // Set the text size
+    movement_CounterText_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
+    movement_CounterText_1p.setPosition(10, 10);                // Set the position on the screen
+    movement_CounterText_1p.setString("0");
+
+    sf::Text point_1p;
+    point_1p.setFont(font);                      // Set the font
+    point_1p.setCharacterSize(30);               // Set the text size
+    point_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
+    point_1p.setPosition(10, 30);                // Set the position on the screen
+    point_1p.setString("0");
+
+    sf::Text movement_CounterText_2p;
+    movement_CounterText_2p.setFont(font);                      // Set the font
+    movement_CounterText_2p.setCharacterSize(20);               // Set the text size
+    movement_CounterText_2p.setFillColor(sf::Color(0, 128, 0)); // Set the text color
+    movement_CounterText_2p.setPosition(780, 10);               // Set the position on the screen
+    movement_CounterText_2p.setString("0");
+
+    sf::Text point_2p;
+    point_2p.setFont(font);                      // Set the font
+    point_2p.setCharacterSize(30);               // Set the text size
+    point_2p.setFillColor(sf::Color(0, 128, 0)); // Set the text color
+    point_2p.setPosition(780, 30);               // Set the position on the screen
+    point_2p.setString("0");
+
+    sf::Clock playModeClock; // Clock to track elapsed time for PLAY mode
+    sf::Text playElapsedTimeText;
+    playElapsedTimeText.setFont(font);                  // Set the font
+    playElapsedTimeText.setCharacterSize(20);           // Set the text size
+    playElapsedTimeText.setFillColor(sf::Color::White); // Set the text color
+    playElapsedTimeText.setPosition(480, 10);           // Set the position on the screen
+    playElapsedTimeText.setString("0");
 
     while (window.isOpen())
     {
@@ -175,39 +395,134 @@ int main()
         clock.restart();
         timer += time;
 
-        // ensures that the game updates are tied to real time, not the frame rate. It makes the game run consistently on systems with
-        // different performance levels.
-
         sf::Event e;
 
         while (window.pollEvent(e))
         {
-            if (e.type == sf::Event::Closed) // when exiting the game
+            if (e.type == sf::Event::Closed)
                 window.close();
 
-            if (gameState == MENU)
+            if (e.type == sf::Event::KeyPressed && e.key.code == sf::Keyboard::Escape)
             {
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Enter))
-                {
-                    gameState = PLAY; // Start the game
-                }
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
-                {
-                    window.close(); // Exit the game
-                }
-            }
-
-            if (e.type == sf::Event::KeyPressed)
-                if (e.key.code == sf::Keyboard::Escape) // press escape to restart the game
+                if (gameState == MENU)
+                    window.close();
+                else
                 {
                     for (int i = 1; i < M - 1; i++)
                         for (int j = 1; j < N - 1; j++)
                             grid[i][j] = 0;
 
-                    x = 0;
-                    y = 0;
+                    x = y = 0;
+                    movementCounter_1p = movementCounter_2p = 0;
                     Game = true;
                 }
+            }
+
+            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+            {
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                if (gameState == MENU)
+                {
+                    if (start_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                        gameState = PLAY;
+                    else if (level_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                        gameState = LEVELS;
+                    else if (mode_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                        gameState = MODES;
+                    else if (stop_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                        window.close();
+
+                    if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+                    {
+                        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                        if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameState = PLAY;
+                        }
+                        else if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameState = LEVELS;
+                        }
+                        else if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            std::cout << "Mode button clicked!" << std::endl;
+                            gameState = MODES;
+                        }
+                    }
+                }
+                else if (gameState == MODES)
+                {
+                    if (_1p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameMode = SINGLE_PLAYER;
+                        std::cout << "1P mode selected!" << std::endl;
+                    }
+                    else if (_2p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameMode = TWO_PLAYER;
+                        std::cout << "2P mode selected!" << std::endl;
+                    }
+                    else if (back_button_mode.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameState = MENU;
+                    }
+                    else if (easy_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameDifficulty = EASY;
+                        enemyCount = 2; // Set enemy count for easy mode
+                        std::cout << "Easy mode selected!" << std::endl;
+                    }
+                    else if (medium_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameDifficulty = MEDIUM;
+                        enemyCount = 4; // Set enemy count for medium mode
+                        std::cout << "Medium mode selected!" << std::endl;
+                    }
+                    else if (hard_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameDifficulty = HARD;
+                        enemyCount = 6; // Set enemy count for hard mode
+                        std::cout << "Hard mode selected!" << std::endl;
+                    }
+                    else if (continuous_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        gameDifficulty = continuous;
+                        std::cout << "Continuous mode selected!" << std::endl;
+                    }
+                }
+                else if (gameState == LEVELS)
+                {
+                    if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
+                    {
+                        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                        if (level_one.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameLevel = LEVEL_ONE;
+                            gameState = MENU;
+                            std::cout << "Level 1 selected!" << std::endl;
+                        }
+                        else if (level_two.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameLevel = LEVEL_TWO;
+                            gameState = MENU;
+                            std::cout << "Level 2 selected!" << std::endl;
+                        }
+                        else if (level_three.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameLevel = LEVEL_THREE;
+                            gameState = MENU;
+                            std::cout << "Level 3 selected!" << std::endl;
+                        }
+                        else if (back_button_level.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            gameState = MENU;
+                        }
+                    }
+                }
+            }
         }
 
         if (gameState == MENU)
@@ -233,42 +548,6 @@ int main()
 
             // sf::Vector2f currentScale = mode_button.getScale();
 
-            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
-            {
-                // Get the mouse position relative to the window
-                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-                // Handle "Start" button click
-                if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                {
-                    gameState = PLAY; // Transition to PLAY state
-                }
-            }
-
-            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
-            {
-                // Get the mouse position relative to the window
-                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-                // Handle "Levels" button click
-                if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                {
-                    gameState = LEVELS; // Transition to LEVELS state
-                }
-            }
-
-            if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
-            {
-                // Get the mouse position relative to the window
-                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-                if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                {
-                    std::cout << "Mode button clicked!" << std::endl;
-                    gameState = MODES;
-                }
-            }
-
             // Draw the menu elements
             window.clear(sf::Color::White);
             window.draw(menu_text);
@@ -285,31 +564,17 @@ int main()
         {
 
             window.clear(sf::Color(50, 158, 168));
-            sf::Event e2;
-
-            if (e2.type == sf::Event::MouseButtonPressed && e2.mouseButton.button == sf::Mouse::Left)
-            {
-                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-                if (_1p_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
-                {   
-                    gameMode = SINGLE_PLAYER;
-                    gameState = PLAY;
-                }
-                if (_2p_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
-                {
-                    gameMode = TWO_PLAYER;
-                    gameState = PLAY;
-                }
-                if (back_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
-                {
-                    gameState = MENU;
-                }
-            }
 
             window.draw(_1p_button);
             window.draw(_2p_button);
-            window.draw(back_button);
+
+            window.draw(continuous_button);
+
+            window.draw(easy_button);
+            window.draw(medium_button);
+            window.draw(hard_button);
+
+            window.draw(back_button_mode);
 
             window.display();
             continue;
@@ -317,114 +582,217 @@ int main()
 
         if (gameState == LEVELS)
         {
-        }
+            window.clear(sf::Color(50, 158, 168));
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-        {
-            dx = -1;
-            dy = 0;
-        };
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-        {
-            dx = 1;
-            dy = 0;
-        };
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-        {
-            dx = 0;
-            dy = -1;
-        };
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-        {
-            dx = 0;
-            dy = 1;
-        };
+            window.draw(level_one);
+            window.draw(level_two);
+            window.draw(level_three);
+            window.draw(text1);
 
-        if (!Game)
+            window.draw(back_button_level);
+
+            window.display();
             continue;
-
-        if (timer > delay) // Check if enough time has passed to update the player's movement
-        {
-            // move the player
-            x += dx;
-            y += dy;
-
-            // detect collision with the grid boundaries
-            if (x < 0)
-                x = 0;
-            if (x > N - 1)
-                x = N - 1;
-            if (y < 0)
-                y = 0;
-            if (y > M - 1)
-                y = M - 1;
-
-            // check if the player has hit a wall or an enemy
-            if (grid[y][x] == 2)
-                Game = false;
-            // if the player hits a wall, set the position back to the last valid position
-            if (grid[y][x] == 0)
-                grid[y][x] = 2;
-
-            timer = 0;
         }
 
-        for (int i = 0; i < enemyCount; i++)
-            a[i].move();
-
-        if (grid[y][x] == 1)
+        if (gameState == PLAY)
         {
-            dx = dy = 0;
+
+            // window.clear();
+
+            if (gameDifficulty == continuous)
+            {
+                continuousModeTimer += time; // Increment the timer for Continuous Mode
+
+                if (continuousModeTimer >= 20.0f) // Check if 20 seconds have passed
+                {
+                    if (enemyCount + 2 <= 18) // Limit the maximum number of enemies to 10
+                    {
+                        enemyCount += 2; // Add 2 more enemies
+                        std::cout << "Added 2 more enemies! Total enemies: " << enemyCount << std::endl;
+                    }
+                    continuousModeTimer = 0; // Reset the timer
+                }
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            {
+                dx = -1;
+                dy = 0;
+            };
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+            {
+                dx = 1;
+                dy = 0;
+            };
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+            {
+                dx = 0;
+                dy = -1;
+            };
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+            {
+                dx = 0;
+                dy = 1;
+            };
+
+            if (!Game)
+                continue;
+
+            if (timer > delay) // Check if enough time has passed to update the player's movement
+            {
+                int prevX = x;
+                int prevY = y;
+                // move the player
+                x += dx;
+                y += dy;
+
+                // detect collision with the grid boundaries
+                if (x < 0)
+                    x = 0;
+                if (x > N - 1)
+                    x = N - 1;
+                if (y < 0)
+                    y = 0;
+                if (y > M - 1)
+                    y = M - 1;
+
+                if ((x != prevX || y != prevY) && grid[y][x] != 1)
+                {
+                    movementCounter_1p++;
+                    std::cout << "Movement Counter: " << movementCounter_1p << std::endl;
+                }
+
+                // check if the player has hit a wall or an enemy
+                if (grid[y][x] == 2)
+                    Game = false;
+                // if the player hits a wall, set the position back to the last valid position
+                if (grid[y][x] == 0)
+                    grid[y][x] = 2;
+
+                timer = 0;
+            }
 
             for (int i = 0; i < enemyCount; i++)
-                drop(a[i].y / ts, a[i].x / ts);
+            {
+                a[i].move();
+            }
+
+            enemySpeed_timer += time;
+
+            if (enemySpeed_timer >= 20.0f)
+            {
+                for (int i = 0; i < enemyCount; i++)
+                {
+                    if (a[i].dx < 0)
+                        a[i].dx -= 1; // Increase negative speed
+                    else
+                        a[i].dx += 1; // Increase positive speed
+
+                    if (a[i].dy < 0)
+                        a[i].dy -= 1; // Increase negative speed
+                    else
+                        a[i].dy += 1; // Increase positive speed
+                }
+
+                std::cout << "Enemy speed increased!" << std::endl;
+                enemySpeed_timer = 0;
+            }
+
+            enemy_movement_timer += time;
+
+            if (enemy_movement_timer >= 5.0f) // After 30 seconds
+            {
+                for (int i = 0; i < enemyCount / 2; i++) // Switch movement for half the enemies
+                {
+                    if (i % 2 == 0)
+                        a[i].movement = ZIG_ZAG; // Assign zig-zag movement
+                    else
+                        a[i].movement = CIRCULAR; // Assign circular movement
+                }
+
+                std::cout << "Enemies switched to geometric patterns!" << std::endl;
+                enemy_movement_timer = 0; // Reset the timer
+            }
+
+            if (grid[y][x] == 1)
+            {
+                dx = dy = 0;
+
+                for (int i = 0; i < enemyCount; i++)
+                    drop(a[i].y / ts, a[i].x / ts);
+
+                for (int i = 0; i < M; i++)
+                    for (int j = 0; j < N; j++)
+                        if (grid[i][j] == -1)
+                            grid[i][j] = 0;
+                        else
+                            grid[i][j] = 1; // this will replace the 2 with the 1 in the grid
+            }
+
+            for (int i = 0; i < enemyCount; i++) // if the enemy hits the players trail
+                if (grid[a[i].y / ts][a[i].x / ts] == 2)
+                    Game = false;
+
+            /////////draw//////////
+            window.clear(); /// clear the window with black color so that the previous frame is not visible
 
             for (int i = 0; i < M; i++)
-                for (int j = 0; j < N; j++)
-                    if (grid[i][j] == -1)
-                        grid[i][j] = 0;
-                    else
-                        grid[i][j] = 1; // this will replace the 2 with the 1 in the grid
-        }
-
-        for (int i = 0; i < enemyCount; i++) // if the enemy hits the players trail
-            if (grid[a[i].y / ts][a[i].x / ts] == 2)
-                Game = false;
-
-        /////////draw//////////
-        window.clear(); /// clear the window with black color so that the previous frame is not visible
-
-        for (int i = 0; i < M; i++)
-        {
-            for (int j = 0; j < N; j++)
             {
-                if (grid[i][j] == 0)
-                    continue;
-                if (grid[i][j] == 1)
-                    sTile.setTextureRect(sf::IntRect(0, 0, ts, ts));
-                if (grid[i][j] == 2)
-                    sTile.setTextureRect(sf::IntRect(54, 0, ts, ts));
-                sTile.setPosition(j * ts, i * ts);
-                window.draw(sTile);
+                for (int j = 0; j < N; j++)
+                {
+                    if (grid[i][j] == 0)
+                        continue;
+                    if (grid[i][j] == 1)
+                        sTile.setTextureRect(sf::IntRect(0, 0, ts, ts));
+                    if (grid[i][j] == 2)
+                        sTile.setTextureRect(sf::IntRect(54, 0, ts, ts));
+                    sTile.setPosition(j * ts, i * ts);
+                    window.draw(sTile);
+                }
             }
+
+            sTile.setTextureRect(sf::IntRect(36, 0, ts, ts)); // this is the sprite for the player
+            sTile.setPosition(x * ts, y * ts);
+            window.draw(sTile);
+
+            sEnemy.rotate(20); // rotate the enemy sprite on its own axis set by  sEnemy.setOrigin(20, 20);
+
+            for (int i = 0; i < enemyCount; i++) // draw the enemies
+            {
+                sEnemy.setPosition(a[i].x, a[i].y);
+                window.draw(sEnemy);
+            }
+
+            if (!Game)
+            {
+                window.draw(sGameover);
+            }
+
+            movement_CounterText_1p.setString("movement counter:" + std::to_string(movementCounter_1p)); // Update the text with the current movement counter
+            point_1p.setString("X:" + std::to_string(movementCounter_1p));
+            window.draw(movement_CounterText_1p);
+            window.draw(point_1p);
+
+            if (gameMode == TWO_PLAYER)
+            {
+                movement_CounterText_2p.setString("movement counter:" + std::to_string(movementCounter_2p));
+                point_2p.setString("X" + std::to_string(movementCounter_2p));
+                window.draw(movement_CounterText_2p);
+                window.draw(point_2p);
+            }
+
+            if (playModeClock.getElapsedTime().asSeconds() == 0) // Restart clock only once
+            {
+                playModeClock.restart();
+            }
+
+            float playElapsedTime = playModeClock.getElapsedTime().asSeconds();
+            playElapsedTimeText.setString("Time: " + std::to_string(static_cast<int>(playElapsedTime)) + "s");
+
+            window.draw(playElapsedTimeText);
+
+            window.display();
         }
-
-        sTile.setTextureRect(sf::IntRect(36, 0, ts, ts)); // this is the sprite for the player
-        sTile.setPosition(x * ts, y * ts);
-        window.draw(sTile);
-
-        sEnemy.rotate(20); // rotate the enemy sprite on its own axis set by  sEnemy.setOrigin(20, 20);
-
-        for (int i = 0; i < enemyCount; i++) // draw the enemies
-        {
-            sEnemy.setPosition(a[i].x, a[i].y);
-            window.draw(sEnemy);
-        }
-
-        if (!Game)
-            window.draw(sGameover);
-
-        window.display();
     }
 
     return 0;

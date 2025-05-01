@@ -3,6 +3,7 @@
         "numbers": "cpp",
         "string": "cpp",
         "format": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "ostream": "cpp"
     }
 }

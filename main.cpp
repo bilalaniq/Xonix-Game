@@ -5,6 +5,7 @@
 #include <string>
 #include <cstring>
 #include <SFML/Window.hpp>
+#include <SFML/Audio.hpp>
 #include <iostream>
 
 // Define game states
@@ -124,7 +125,7 @@ struct Enemy
     {
         static int frameCount = 0;
         static bool goingRight = true;
-        static int verticalDir = 1; // 1 = down, -1 = up
+        static int verticalDir = 1; // 1 for down, -1 for up
 
         const int zigzagInterval = 50;
         frameCount++;
@@ -135,12 +136,22 @@ struct Enemy
             frameCount = 0;
         }
 
-        int move_dx = goingRight ? 5 : -5;
+        int move_dx;
+
+        if (goingRight)
+        {
+            move_dx = 5; // Move right
+        }
+        else
+        {
+            move_dx = -5; // Move left
+        }
+
         int move_dy = verticalDir * 2;
 
         // Add jitter for randomness
-        move_dx += rand() % 3 - 1;
-        move_dy += rand() % 3 - 1;
+        move_dx += rand() % 3 - 1; // Randomly adjust the x movement
+        move_dy += rand() % 3 - 1; // Randomly adjust the y movement
 
         int new_x = x + move_dx;
         int new_y = y + move_dy;
@@ -149,7 +160,7 @@ struct Enemy
         if (new_x >= 0 && new_x < N * ts && new_y >= 0 && new_y < M * ts)
         {
             // Move the enemy only if within bounds
-            if (grid[new_y / ts][new_x / ts] != 1)
+            if (grid[new_y / ts][new_x / ts] != 1) // correct this for the 2p
             {
                 x = new_x;
                 y = new_y;
@@ -178,8 +189,8 @@ struct Enemy
         int radius = 60;
         int cx = 300, cy = 300; // Circle center
 
-        x = cx + static_cast<int>(radius * cos(angle));
-        y = cy + static_cast<int>(radius * sin(angle));
+        x = cx + static_cast<int>(radius * cos(angle)); //  x = h + r cos(t)
+        y = cy + static_cast<int>(radius * sin(angle)); //  y = k + r sin(t)
 
         // Don't reverse dx/dy here — position is directly set
     }
@@ -187,8 +198,7 @@ struct Enemy
 
 void drop(int y, int x)
 {
-    // this function is used to drop the enemy in the grid
-    // if the enemy is in the grid, it will be dropped to the next cell
+
     if (grid[y][x] == 0)
         grid[y][x] = -1;
     if (grid[y - 1][x] == 0)
@@ -223,7 +233,7 @@ int main()
 
     sf::Sprite sTile(t1), sGameover(t2), sEnemy(t3);
 
-    sGameover.setPosition(100, 100); // The origin (0, 0) is at the top-left corner of the window
+    sGameover.setPosition(300, 300); // The origin (0, 0) is at the top-left corner of the window
 
     sEnemy.setOrigin(20, 20); // Set the origin to the center of the sprite which is 20x20 pixels(assuming the sprite is 40x40 pixels)
 
@@ -236,6 +246,7 @@ int main()
 
     bool Game = true;
     int x = 0, y = 0, dx = 0, dy = 0;
+    int x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
     float timer = 0, delay = 0.07;
     sf::Clock clock;
 
@@ -389,6 +400,19 @@ int main()
     playElapsedTimeText.setPosition(480, 10);           // Set the position on the screen
     playElapsedTimeText.setString("0");
 
+    sf::SoundBuffer buffer;
+    if (!buffer.loadFromFile("sounds/button_click.wav"))
+    {
+        std::cerr << "Error loading sound!" << std::endl;
+        return -1;
+    }
+
+    sf::Sound sound;
+    sound.setBuffer(buffer);
+    sound.setVolume(100);
+    sound.setPitch(1.0f);
+    sound.setAttenuation(0.0f); // No attenuation
+
     while (window.isOpen())
     {
         float time = clock.getElapsedTime().asSeconds();
@@ -413,6 +437,8 @@ int main()
                             grid[i][j] = 0;
 
                     x = y = 0;
+                    x_2 = N - 1;
+                    y_2 = 0;
                     movementCounter_1p = movementCounter_2p = 0;
                     Game = true;
                 }
@@ -425,13 +451,25 @@ int main()
                 if (gameState == MENU)
                 {
                     if (start_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        sound.play();
                         gameState = PLAY;
+                    }
                     else if (level_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        sound.play();
                         gameState = LEVELS;
+                    }
                     else if (mode_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        sound.play();
                         gameState = MODES;
+                    }
                     else if (stop_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        sound.play();
                         window.close();
+                    }
 
                     if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
                     {
@@ -439,15 +477,18 @@ int main()
 
                         if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
+                            sound.play();
                             gameState = PLAY;
                         }
                         else if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
+                            sound.play();
                             gameState = LEVELS;
                         }
                         else if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             std::cout << "Mode button clicked!" << std::endl;
+                            sound.play();
                             gameState = MODES;
                         }
                     }
@@ -457,38 +498,45 @@ int main()
                     if (_1p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameMode = SINGLE_PLAYER;
+                        sound.play();
                         std::cout << "1P mode selected!" << std::endl;
                     }
                     else if (_2p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameMode = TWO_PLAYER;
+                        sound.play();
                         std::cout << "2P mode selected!" << std::endl;
                     }
                     else if (back_button_mode.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
+                        sound.play();
                         gameState = MENU;
                     }
                     else if (easy_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = EASY;
                         enemyCount = 2; // Set enemy count for easy mode
+                        sound.play();
                         std::cout << "Easy mode selected!" << std::endl;
                     }
                     else if (medium_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = MEDIUM;
                         enemyCount = 4; // Set enemy count for medium mode
+                        sound.play();
                         std::cout << "Medium mode selected!" << std::endl;
                     }
                     else if (hard_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = HARD;
                         enemyCount = 6; // Set enemy count for hard mode
+                        sound.play();
                         std::cout << "Hard mode selected!" << std::endl;
                     }
                     else if (continuous_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = continuous;
+                        sound.play();
                         std::cout << "Continuous mode selected!" << std::endl;
                     }
                 }
@@ -502,22 +550,26 @@ int main()
                         {
                             gameLevel = LEVEL_ONE;
                             gameState = MENU;
+                            sound.play();
                             std::cout << "Level 1 selected!" << std::endl;
                         }
                         else if (level_two.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             gameLevel = LEVEL_TWO;
                             gameState = MENU;
+                            sound.play();
                             std::cout << "Level 2 selected!" << std::endl;
                         }
                         else if (level_three.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             gameLevel = LEVEL_THREE;
                             gameState = MENU;
+                            sound.play();
                             std::cout << "Level 3 selected!" << std::endl;
                         }
                         else if (back_button_level.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
+                            sound.play();
                             gameState = MENU;
                         }
                     }
@@ -635,6 +687,30 @@ int main()
                 dy = 1;
             };
 
+            if (gameMode == TWO_PLAYER)
+            {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+                {
+                    dx_2 = -1;
+                    dy_2 = 0;
+                };
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+                {
+                    dx_2 = 1;
+                    dy_2 = 0;
+                };
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+                {
+                    dx_2 = 0;
+                    dy_2 = -1;
+                };
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+                {
+                    dx_2 = 0;
+                    dy_2 = 1;
+                };
+            }
+
             if (!Game)
                 continue;
 
@@ -663,13 +739,49 @@ int main()
                 }
 
                 // check if the player has hit a wall or an enemy
-                if (grid[y][x] == 2)
+                if (grid[y][x] == 2 || grid[y][x] == 3) // Collision with wall or Player 2's trail
                     Game = false;
                 // if the player hits a wall, set the position back to the last valid position
                 if (grid[y][x] == 0)
                     grid[y][x] = 2;
 
                 timer = 0;
+
+                if (gameMode == TWO_PLAYER)
+                {
+                    int prevX_2 = x_2;
+                    int prevY_2 = y_2;
+                    // move the player
+                    x_2 += dx_2;
+                    y_2 += dy_2;
+
+                    // detect collision with the grid boundaries
+                    if (x_2 < 0)
+                        x_2 = 0;
+                    if (x_2 > N - 1)
+                        x_2 = N - 1;
+                    if (y_2 < 0)
+                        y_2 = 0;
+                    if (y_2 > M - 1)
+                        y_2 = M - 1;
+
+                    if ((x_2 != prevX_2 || y_2 != prevY_2) && grid[y_2][x_2] != 1)
+                    {
+                        movementCounter_2p++;
+                        std::cout << "Movement Counter 2p: " << movementCounter_2p << std::endl;
+                    }
+
+                    if (grid[y_2][x_2] == 3 || grid[y_2][x_2] == 2) // Collision with wall or Player 1's trail
+                    {
+                        Game = false;
+                    }
+
+                    if (grid[y_2][x_2] == 0) // Only mark empty cells
+                    {
+                        std::cout << "Player 2's movement: " << x_2 << ", " << y_2 << std::endl;
+                        grid[y_2][x_2] = 3; // Mark Player 2's trail
+                    }
+                }
             }
 
             for (int i = 0; i < enemyCount; i++)
@@ -724,14 +836,45 @@ int main()
                 for (int i = 0; i < M; i++)
                     for (int j = 0; j < N; j++)
                         if (grid[i][j] == -1)
+                        {
                             grid[i][j] = 0;
-                        else
+                        }
+                        else if (grid[i][j] == 2 || grid[i][j] == 0)
+                        {
                             grid[i][j] = 1; // this will replace the 2 with the 1 in the grid
+                        }
             }
 
-            for (int i = 0; i < enemyCount; i++) // if the enemy hits the players trail
-                if (grid[a[i].y / ts][a[i].x / ts] == 2)
+            if (gameMode == TWO_PLAYER)
+            {
+
+                if (grid[y_2][x_2] == 1)
+                {
+                    dx_2 = dy_2 = 0;
+
+                    for (int i = 0; i < enemyCount; i++)
+                        drop(a[i].y / ts, a[i].x / ts);
+
+                    for (int i = 0; i < M; i++)
+                        for (int j = 0; j < N; j++)
+                            if (grid[i][j] == -1)
+                            {
+                                grid[i][j] = 0;
+                            }
+                            else if (grid[i][j] == 3 || grid[i][j] == 0)
+                            {
+                                grid[i][j] = 1;
+                            }
+                }
+            }
+
+            for (int i = 0; i < enemyCount; i++)
+            {
+                if (grid[a[i].y / ts][a[i].x / ts] == 2 || grid[a[i].y / ts][a[i].x / ts] == 3)
+                {
                     Game = false;
+                }
+            }
 
             /////////draw//////////
             window.clear(); /// clear the window with black color so that the previous frame is not visible
@@ -743,9 +886,17 @@ int main()
                     if (grid[i][j] == 0)
                         continue;
                     if (grid[i][j] == 1)
+                    {
                         sTile.setTextureRect(sf::IntRect(0, 0, ts, ts));
+                    }
                     if (grid[i][j] == 2)
+                    {
                         sTile.setTextureRect(sf::IntRect(54, 0, ts, ts));
+                    }
+                    if (grid[i][j] == 3)
+                    {
+                        sTile.setTextureRect(sf::IntRect(54, 0, ts, ts)); // Use a different texture for Player 2's trail
+                    }
                     sTile.setPosition(j * ts, i * ts);
                     window.draw(sTile);
                 }
@@ -753,6 +904,10 @@ int main()
 
             sTile.setTextureRect(sf::IntRect(36, 0, ts, ts)); // this is the sprite for the player
             sTile.setPosition(x * ts, y * ts);
+            window.draw(sTile);
+
+            sTile.setTextureRect(sf::IntRect(109, 0, ts, ts)); // this is the sprite for the player 2
+            sTile.setPosition(x_2 * ts, y_2 * ts);
             window.draw(sTile);
 
             sEnemy.rotate(20); // rotate the enemy sprite on its own axis set by  sEnemy.setOrigin(20, 20);

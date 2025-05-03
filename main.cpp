@@ -66,6 +66,12 @@ size_t movementCounter_2p = 0; // Counter for movements
 size_t _1p_points = 0;
 size_t _2p_points = 0;
 
+sf::Clock powerUpClock;
+bool isPaused = false;
+
+bool disablePlayer2Controls = false;
+bool disablePlayer1Controls = false;
+
 // bool streak;
 
 int elapsedTime = 0; // Elapsed time for the game
@@ -95,6 +101,9 @@ struct Enemy
 
     void move()
     {
+        if (isPaused) // If the game is paused, do not update the enemy's position
+            return;
+
         if (movement == LINEAR)
         {
             x += dx;
@@ -247,6 +256,10 @@ int main()
     bool Game = true;
     int x = 0, y = 0, dx = 0, dy = 0;
     int x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
+
+    bool power_up_1p = false;
+    bool power_up_2p = false;
+
     float timer = 0, delay = 0.07;
     sf::Clock clock;
 
@@ -400,18 +413,29 @@ int main()
     playElapsedTimeText.setPosition(480, 10);           // Set the position on the screen
     playElapsedTimeText.setString("0");
 
-    sf::SoundBuffer buffer;
-    if (!buffer.loadFromFile("sounds/button_click.wav"))
+    sf::SoundBuffer buffer_button;
+    if (!buffer_button.loadFromFile("sounds/button_click.wav"))
     {
-        std::cerr << "Error loading sound!" << std::endl;
+        std::cerr << "Error loading button_sound!" << std::endl;
         return -1;
     }
 
-    sf::Sound sound;
-    sound.setBuffer(buffer);
-    sound.setVolume(100);
-    sound.setPitch(1.0f);
-    sound.setAttenuation(0.0f); // No attenuation
+    sf::Sound button_sound;
+    button_sound.setBuffer(buffer_button);
+    button_sound.setVolume(100);
+    button_sound.setPitch(1.0f);
+
+    sf::SoundBuffer buffer_gameover;
+    if (!buffer_gameover.loadFromFile("sounds/gameover.wav"))
+    {
+        std::cerr << "Error loading gameover_sound!" << std::endl;
+        return -1;
+    }
+
+    sf::Sound gameover_sound;
+    gameover_sound.setBuffer(buffer_gameover);
+    gameover_sound.setVolume(100);
+    gameover_sound.setPitch(1.0f);
 
     while (window.isOpen())
     {
@@ -452,22 +476,22 @@ int main()
                 {
                     if (start_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
-                        sound.play();
+                        button_sound.play();
                         gameState = PLAY;
                     }
                     else if (level_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
-                        sound.play();
+                        button_sound.play();
                         gameState = LEVELS;
                     }
                     else if (mode_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
-                        sound.play();
+                        button_sound.play();
                         gameState = MODES;
                     }
                     else if (stop_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
-                        sound.play();
+                        button_sound.play();
                         window.close();
                     }
 
@@ -477,18 +501,18 @@ int main()
 
                         if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
-                            sound.play();
+                            button_sound.play();
                             gameState = PLAY;
                         }
                         else if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
-                            sound.play();
+                            button_sound.play();
                             gameState = LEVELS;
                         }
                         else if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             std::cout << "Mode button clicked!" << std::endl;
-                            sound.play();
+                            button_sound.play();
                             gameState = MODES;
                         }
                     }
@@ -498,45 +522,45 @@ int main()
                     if (_1p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameMode = SINGLE_PLAYER;
-                        sound.play();
+                        button_sound.play();
                         std::cout << "1P mode selected!" << std::endl;
                     }
                     else if (_2p_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameMode = TWO_PLAYER;
-                        sound.play();
+                        button_sound.play();
                         std::cout << "2P mode selected!" << std::endl;
                     }
                     else if (back_button_mode.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
-                        sound.play();
+                        button_sound.play();
                         gameState = MENU;
                     }
                     else if (easy_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = EASY;
                         enemyCount = 2; // Set enemy count for easy mode
-                        sound.play();
+                        button_sound.play();
                         std::cout << "Easy mode selected!" << std::endl;
                     }
                     else if (medium_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = MEDIUM;
                         enemyCount = 4; // Set enemy count for medium mode
-                        sound.play();
+                        button_sound.play();
                         std::cout << "Medium mode selected!" << std::endl;
                     }
                     else if (hard_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = HARD;
                         enemyCount = 6; // Set enemy count for hard mode
-                        sound.play();
+                        button_sound.play();
                         std::cout << "Hard mode selected!" << std::endl;
                     }
                     else if (continuous_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = continuous;
-                        sound.play();
+                        button_sound.play();
                         std::cout << "Continuous mode selected!" << std::endl;
                     }
                 }
@@ -550,26 +574,26 @@ int main()
                         {
                             gameLevel = LEVEL_ONE;
                             gameState = MENU;
-                            sound.play();
+                            button_sound.play();
                             std::cout << "Level 1 selected!" << std::endl;
                         }
                         else if (level_two.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             gameLevel = LEVEL_TWO;
                             gameState = MENU;
-                            sound.play();
+                            button_sound.play();
                             std::cout << "Level 2 selected!" << std::endl;
                         }
                         else if (level_three.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             gameLevel = LEVEL_THREE;
                             gameState = MENU;
-                            sound.play();
+                            button_sound.play();
                             std::cout << "Level 3 selected!" << std::endl;
                         }
                         else if (back_button_level.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
-                            sound.play();
+                            button_sound.play();
                             gameState = MENU;
                         }
                     }
@@ -666,49 +690,151 @@ int main()
                     continuousModeTimer = 0; // Reset the timer
                 }
             }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) && !disablePlayer1Controls)
             {
                 dx = -1;
                 dy = 0;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) && !disablePlayer1Controls)
             {
                 dx = 1;
                 dy = 0;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up) && !disablePlayer1Controls)
             {
                 dx = 0;
                 dy = -1;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down) && !disablePlayer1Controls)
             {
                 dx = 0;
                 dy = 1;
             };
 
+            int temp_dx_2, temp_dy_2;
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::RShift) && !isPaused && !disablePlayer1Controls)
+            {
+                if (power_up_1p == false)
+                {
+                    power_up_1p = true;
+                    isPaused = true;
+                    disablePlayer2Controls = true; // Disable Player 2 controls
+                    std::cout << "Power-up activated! Enemies and Player 2 stopped for 3 seconds." << std::endl;
+
+                    // Stop all enemies and Player 2
+                    for (int i = 0; i < enemyCount; i++)
+                    {
+                        a[i].dx = 0;
+                        a[i].dy = 0;
+                    }
+                    for (int i = 0; i < M - 1; i++)
+                    {
+                        for (int j = 0; j < N - 1; j++)
+                        {
+                            if (grid[i][j] == 3)
+                            {
+                                grid[i][j] = 1;
+                            }
+                        }
+                    }
+                    temp_dx_2 = dx_2; // Store Player 2's current movement
+                    temp_dy_2 = dy_2; // Store Player 2's current movement
+                    dx_2 = 0;
+                    dy_2 = 0;
+
+                    powerUpClock.restart(); // Start the timer
+                }
+            }
+
+            // Check if the 3-second pause is over
+            if (isPaused && powerUpClock.getElapsedTime().asSeconds() >= 3.0f && power_up_1p)
+            {
+                // Resume enemy and Player 2 movement
+                for (int i = 0; i < enemyCount; i++)
+                {
+                    a[i].dx = 4 - rand() % 11; // Restore random movement for enemies
+                    a[i].dy = 4 - rand() % 11;
+                }
+                dx_2 = temp_dx_2; // Reset Player 2's movement to stationary
+                dy_2 = temp_dy_2; // Reset Player 2's movement to stationary
+
+                isPaused = false;               // End the pause
+                power_up_1p = false;            // Reset the power-up state
+                disablePlayer2Controls = false; // Enable Player 2 controls
+            }
+
             if (gameMode == TWO_PLAYER)
             {
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) && !disablePlayer2Controls)
                 {
                     dx_2 = -1;
                     dy_2 = 0;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) && !disablePlayer2Controls)
                 {
                     dx_2 = 1;
                     dy_2 = 0;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && !disablePlayer2Controls)
                 {
                     dx_2 = 0;
                     dy_2 = -1;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) && !disablePlayer2Controls)
                 {
                     dx_2 = 0;
                     dy_2 = 1;
                 };
+                int temp_dx, temp_dy;
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) && !isPaused && !disablePlayer2Controls)
+                {
+                    if (power_up_2p == false)
+                    {
+                        power_up_2p = true;
+                        isPaused = true;
+                        disablePlayer1Controls = true; // Disable Player 1 controls
+                        std::cout << "Power-up activated! Enemies and Player 1 stopped for 3 seconds." << std::endl;
+
+                        // Stop all enemies and Player 1
+                        for (int i = 0; i < enemyCount; i++)
+                        {
+                            a[i].dx = 0;
+                            a[i].dy = 0;
+                        }
+                        for (int i = 0; i < M - 1; i++)
+                        {
+                            for (int j = 0; j < N - 1; j++)
+                            {
+                                if (grid[i][j] == 2)
+                                {
+                                    grid[i][j] = 1;
+                                }
+                            }
+                        }
+                        temp_dx = dx; // Store Player 1's current movement
+                        temp_dy = dy; // Store Player 1's current movement
+                        dx = 0;
+                        dy = 0;
+
+                        powerUpClock.restart(); // Start the timer
+                    }
+                }
+
+                if (isPaused && powerUpClock.getElapsedTime().asSeconds() >= 3.0f && power_up_2p)
+                {
+                    // Resume enemy and Player 1 movement
+                    for (int i = 0; i < enemyCount; i++)
+                    {
+                        a[i].dx = 4 - rand() % 11; // Restore random movement for enemies
+                        a[i].dy = 4 - rand() % 11;
+                    }
+                    dx = temp_dx; // Reset Player 1's movement to stationary
+                    dy = temp_dy; // Reset Player 1's movement to stationary
+
+                    isPaused = false;               // End the pause
+                    power_up_2p = false;            // Reset the power-up state
+                    disablePlayer1Controls = false; // Enable Player 1 controls
+                }
             }
 
             if (!Game)
@@ -906,9 +1032,13 @@ int main()
             sTile.setPosition(x * ts, y * ts);
             window.draw(sTile);
 
-            sTile.setTextureRect(sf::IntRect(109, 0, ts, ts)); // this is the sprite for the player 2
-            sTile.setPosition(x_2 * ts, y_2 * ts);
-            window.draw(sTile);
+            if (gameMode == TWO_PLAYER)
+            {
+
+                sTile.setTextureRect(sf::IntRect(109, 0, ts, ts)); // this is the sprite for the player 2
+                sTile.setPosition(x_2 * ts, y_2 * ts);
+                window.draw(sTile);
+            }
 
             sEnemy.rotate(20); // rotate the enemy sprite on its own axis set by  sEnemy.setOrigin(20, 20);
 
@@ -920,6 +1050,7 @@ int main()
 
             if (!Game)
             {
+                gameover_sound.play();
                 window.draw(sGameover);
             }
 

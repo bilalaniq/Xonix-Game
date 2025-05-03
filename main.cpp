@@ -7,6 +7,7 @@
 #include <SFML/Window.hpp>
 #include <SFML/Audio.hpp>
 #include <iostream>
+#include <fstream>
 
 // Define game states
 enum GameState
@@ -15,7 +16,8 @@ enum GameState
     PLAY,
     GAMEOVER,
     LEVELS,
-    MODES // Modes menu
+    MODES, // Modes menu
+    highscore
 };
 
 enum GameMode
@@ -47,30 +49,27 @@ enum movement_type
 };
 
 GameState gameState = MENU;
-
-difficulty gameDifficulty = EASY; // Default difficulty
-
-GameLevel gameLevel = LEVEL_ONE; // Default level
-
+difficulty gameDifficulty = EASY;
+GameLevel gameLevel = LEVEL_ONE;
 GameMode gameMode = SINGLE_PLAYER;
 
-float continuousModeTimer = 0; // Timer for adding enemies in Continuous Mode
-
+float continuousModeTimer = 0;
 float enemySpeed_timer = 0;
-
 float enemy_movement_timer = 0;
 
-size_t movementCounter_1p = 0; // Counter for movements
-size_t movementCounter_2p = 0; // Counter for movements
+size_t movementCounter_1p = 0;
+size_t movementCounter_2p = 0;
 
 size_t _1p_points = 0;
 size_t _2p_points = 0;
 
 sf::Clock powerUpClock;
 bool isPaused = false;
-
 bool disablePlayer2Controls = false;
 bool disablePlayer1Controls = false;
+
+bool p1_dead = false;
+bool p2_dead = false;
 
 // bool streak;
 
@@ -205,6 +204,58 @@ struct Enemy
     }
 };
 
+struct ScoreEntry
+{
+    int score;
+    int timeTaken;
+};
+
+void loadScoresFromFile(ScoreEntry scores[], int &count, const std::string &filename = "scores.txt")
+{
+    std::ifstream file(filename);
+    if (!file)
+    {
+        std::cerr << "Error: Could not open file " << filename << " for reading!" << std::endl;
+        count = 0; // No scores loaded
+        return;
+    }
+
+    count = 0;
+    while (file >> scores[count].score >> scores[count].timeTaken)
+    {
+        count++;
+        if (count >= 5)
+        {
+            break;
+        }
+    }
+
+    file.close();
+}
+
+void updateScoreboard(ScoreEntry scores[], int &count, int newScore, int newTime)
+{
+    // Check if the new score qualifies for the top 5
+    if (count < 5 || newScore > scores[count - 1].score)
+    {
+        if (count < 5)
+        {
+            count++;
+        }
+
+        int i = count - 1;
+        while (i > 0 && scores[i - 1].score < newScore)
+        {
+            scores[i] = scores[i - 1]; // Shift scores down
+            i--;
+        }
+
+        // Insert the new score
+        scores[i].score = newScore;
+        scores[i].timeTaken = newTime;
+    }
+}
+
 void drop(int y, int x)
 {
 
@@ -265,17 +316,25 @@ int main()
 
     construct_boundry(); // for making the boundry constructed
 
+    sf::Texture background_texture;
+    if (!background_texture.loadFromFile("images/menu_bg.png"))
+    {
+        std::cerr << "Error loading menu_bg.png!" << std::endl;
+        return -1;
+    }
+
+    sf::Sprite menu_background(background_texture);
+
+    menu_background.setScale(
+        static_cast<float>(N * ts) / background_texture.getSize().x, // Scale to fit the window width
+        static_cast<float>(M * ts) / background_texture.getSize().y  // Scale to fit the window height
+    );
+
     sf::Texture menu_texture;
     menu_texture.loadFromFile("images/menu_xonix_pic.png");
     sf::Sprite menu_text(menu_texture);
     menu_text.setPosition(50, 20);
     menu_text.setScale(0.4f, 0.4f);
-
-    sf::Texture menu_controller_texture;
-    menu_controller_texture.loadFromFile("images/controller.jpg");
-    sf::Sprite menu_controller(menu_controller_texture);
-    menu_controller.setPosition(550, 170);
-    menu_controller.setScale(0.6f, 0.6f);
 
     sf::Texture start_buton_texture;
     start_buton_texture.loadFromFile("images/start_button.png");
@@ -345,6 +404,10 @@ int main()
 
     sf::Sprite back_button_level(back_button_texture);
     back_button_level.setPosition(350, 500);
+    back_button_level.setScale(1.2, 1.2f);
+
+    sf::Sprite back_button_score(back_button_texture);
+    back_button_score.setPosition(350, 500);
     back_button_level.setScale(1.2, 1.2f);
 
     sf::Texture levle_one_texture;
@@ -432,10 +495,18 @@ int main()
         return -1;
     }
 
+    sf::Texture highscore_texture;
+    highscore_texture.loadFromFile("images/high_score.png");
+    sf::Sprite highscore_button(highscore_texture);
+    highscore_button.setPosition(800, 500);
+    highscore_button.setScale(0.7, 0.7f);
+
     sf::Sound gameover_sound;
     gameover_sound.setBuffer(buffer_gameover);
     gameover_sound.setVolume(100);
     gameover_sound.setPitch(1.0f);
+
+    // for the highscore
 
     while (window.isOpen())
     {
@@ -511,9 +582,13 @@ int main()
                         }
                         else if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
-                            std::cout << "Mode button clicked!" << std::endl;
                             button_sound.play();
                             gameState = MODES;
+                        }
+                        else if (highscore_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        {
+                            button_sound.play();
+                            gameState = highscore;
                         }
                     }
                 }
@@ -598,6 +673,14 @@ int main()
                         }
                     }
                 }
+                else if (gameState == highscore)
+                {
+                    if (back_button_score.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        button_sound.play();
+                        gameState = MENU;
+                    }
+                }
             }
         }
 
@@ -626,12 +709,54 @@ int main()
 
             // Draw the menu elements
             window.clear(sf::Color::White);
+            window.draw(menu_background);
             window.draw(menu_text);
-            window.draw(menu_controller);
             window.draw(start_button);
             window.draw(level_button);
             window.draw(mode_button);
             window.draw(stop_button);
+            window.draw(highscore_button);
+            window.display();
+            continue;
+        }
+
+        if (gameState == highscore)
+        {
+            ScoreEntry high_scores[5];
+            int count = 0;
+
+            // Load high scores from the file
+            loadScoresFromFile(high_scores, count, "scores.txt");
+
+            sf::Text highscore_texts[5]; // Array to hold 5 highscore texts
+
+            for (int i = 0; i < 5; i++)
+            {
+                highscore_texts[i].setFont(font);                    // Set the font
+                highscore_texts[i].setCharacterSize(40);             // Set the text size
+                highscore_texts[i].setFillColor(sf::Color(0, 0, 0)); // Set the text color
+                highscore_texts[i].setPosition(330, 100 + i * 40);   // Set the position for each text (vertically spaced)
+
+                if (i < count)
+                {
+                    // Use the actual score and time from the high_scores array
+                    highscore_texts[i].setString("Highscore " + std::to_string(i + 1) + ": " + std::to_string(high_scores[i].score) + " (" + std::to_string(high_scores[i].timeTaken) + "s)");
+                }
+                else
+                {
+                    highscore_texts[i].setString("Highscore " + std::to_string(i + 1) + ": ---");
+                }
+            }
+
+            window.clear();
+            window.draw(menu_background);
+            window.draw(back_button_score);
+
+            for (int i = 0; i < 5; i++)
+            {
+                window.draw(highscore_texts[i]);
+            }
+
             window.display();
             continue;
         }
@@ -639,7 +764,8 @@ int main()
         if (gameState == MODES)
         {
 
-            window.clear(sf::Color(50, 158, 168));
+            window.clear();
+            window.draw(menu_background);
 
             window.draw(_1p_button);
             window.draw(_2p_button);
@@ -658,7 +784,8 @@ int main()
 
         if (gameState == LEVELS)
         {
-            window.clear(sf::Color(50, 158, 168));
+            window.clear();
+            window.draw(menu_background);
 
             window.draw(level_one);
             window.draw(level_two);
@@ -865,8 +992,11 @@ int main()
                 }
 
                 // check if the player has hit a wall or an enemy
-                if (grid[y][x] == 2 || grid[y][x] == 3) // Collision with wall or Player 2's trail
-                    Game = false;
+                if (grid[y][x] == 2 || grid[y][x] == 3)
+                {
+                    if (gameMode == TWO_PLAYER)
+                        Game = false;
+                }
                 // if the player hits a wall, set the position back to the last valid position
                 if (grid[y][x] == 0)
                     grid[y][x] = 2;

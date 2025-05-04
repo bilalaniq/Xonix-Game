@@ -8,6 +8,7 @@
 #include <SFML/Audio.hpp>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 
 // Define game states
 enum GameState
@@ -57,11 +58,17 @@ float continuousModeTimer = 0;
 float enemySpeed_timer = 0;
 float enemy_movement_timer = 0;
 
-size_t movementCounter_1p = 0;
-size_t movementCounter_2p = 0;
+int tiles_covered_1p = 0;
+int tiles_covered_2p = 0;
 
-size_t _1p_points = 0;
-size_t _2p_points = 0;
+int movementCounter_1p = 0;
+int movementCounter_2p = 0;
+
+int _1p_points = 0;
+int _2p_points = 0;
+
+int reward_counter_1p = 1;
+int reward_counter_2p = 1;
 
 sf::Clock powerUpClock;
 
@@ -77,8 +84,8 @@ bool p2_dead = false;
 
 // bool streak;
 
-int elapsedTime = 0;       // Elapsed time for the game
-float playElapsedTime = 0; // Elapsed time for PLAY mode
+int elapsedTime = 0;
+float playElapsedTime = 0;
 
 const int M = 35;
 const int N = 55;
@@ -284,6 +291,44 @@ void construct_boundry()
                 grid[i][j] = 1;
 }
 
+void dullSprite(sf::Sprite &sprite)
+{
+    sprite.setColor(sf::Color(128, 128, 128, 255));
+}
+
+void restoreSprite(sf::Sprite &sprite)
+{
+    sprite.setColor(sf::Color::White); // Restore by resetting to original color
+}
+
+void reward_p1()
+{
+    if (tiles_covered_1p >= 10 && reward_counter_1p <= 3)
+    {
+        // Double points for capturing more than 10 tiles
+        _1p_points += tiles_covered_1p * 2;
+        reward_counter_1p++;
+        std::cout << "Reward 1: " << reward_counter_1p << " (×2 points)" << std::endl;
+        tiles_covered_1p = 0; // Reset tiles covered
+    }
+    else if (tiles_covered_1p >= 5 && reward_counter_1p > 3 && reward_counter_1p <= 5)
+    {
+        // Double points for capturing more than 5 tiles after 3 rewards
+        _1p_points += tiles_covered_1p * 2;
+        reward_counter_1p++;
+        std::cout << "Reward Counter2: " << reward_counter_1p << " (×2 points, reduced threshold)" << std::endl;
+        tiles_covered_1p = 0; // Reset tiles covered
+    }
+    else if (tiles_covered_1p >= 5 && reward_counter_1p > 5)
+    {
+        // Quadruple points for capturing more than 5 tiles after 5 rewards
+        _1p_points += tiles_covered_1p * 4;
+        reward_counter_1p++;
+        std::cout << "Reward Counter3: " << reward_counter_1p << " (×4 points)" << std::endl;
+        tiles_covered_1p = 0; // Reset tiles covered
+    }
+}
+
 int main()
 {
     srand(time(0));
@@ -455,11 +500,19 @@ int main()
 
     sf::Text point_1p;
     point_1p.setFont(font);                      // Set the font
-    point_1p.setCharacterSize(30);               // Set the text size
+    point_1p.setCharacterSize(25);               // Set the text size
     point_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
     point_1p.setPosition(10, 30);                // Set the position on the screen
     point_1p.setString("0");
     point_1p.setStyle(sf::Text::Bold);
+
+    sf::Text score_x1p;
+    score_x1p.setFont(font);                      // Set the font
+    score_x1p.setCharacterSize(25);               // Set the text size
+    score_x1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
+    score_x1p.setPosition(10, 50);
+    score_x1p.setString("0");
+    score_x1p.setStyle(sf::Text::Bold);
 
     sf::Text movement_CounterText_2p;
     movement_CounterText_2p.setFont(font);                        // Set the font
@@ -471,7 +524,7 @@ int main()
 
     sf::Text point_2p;
     point_2p.setFont(font);                        // Set the font
-    point_2p.setCharacterSize(30);                 // Set the text size
+    point_2p.setCharacterSize(25);                 // Set the text size
     point_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
     point_2p.setPosition(780, 30);                 // Set the position on the screen
     point_2p.setString("0");
@@ -579,6 +632,18 @@ int main()
     main_menu.setPosition(30, 210);
     main_menu.setScale(0.8f, 0.8f);
 
+    sf::SoundBuffer buffer_movement;
+    if (!buffer_movement.loadFromFile("sounds/movement_effect.wav"))
+    {
+        std::cerr << "Error loading movement_sound!" << std::endl;
+        return -1;
+    }
+
+    sf::Sound movement_sound;
+    movement_sound.setBuffer(buffer_movement);
+    movement_sound.setVolume(75);
+    movement_sound.setPitch(3.0f);
+
     while (window.isOpen())
     {
         float time = clock.getElapsedTime().asSeconds();
@@ -594,9 +659,9 @@ int main()
 
             if (e.type == sf::Event::KeyPressed && e.key.code == sf::Keyboard::Escape)
             {
-                if (gameState == PLAY)
+                if (gameState == PLAY && !power_up_1p && !power_up_2p)
                 {
-                    gameState = GAMEOVER_MENU; // Assign GAMEOVER_MENU to gameState
+                    gameState = GAMEOVER_MENU;
                 }
             }
 
@@ -752,9 +817,6 @@ int main()
                         enemySpeed_timer = 0;
                         enemy_movement_timer = 0;
 
-                        movementCounter_1p = 0;
-                        movementCounter_2p = 0;
-
                         _1p_points = 0;
                         _2p_points = 0;
 
@@ -768,12 +830,21 @@ int main()
                         playElapsedTime = 0;
                         playModeClock.restart();
 
+                        Game = true;
+
                         for (int i = 1; i < M - 1; i++)
                         {
                             for (int j = 1; j < N - 1; j++)
                             {
                                 grid[i][j] = 0; // Clear the grid
                             }
+                        }
+
+                        for (int i = 0; i < enemyCount; i++)
+                        {
+                            x = y = 300;
+                            a[i].dx = 4 - rand() % 11;
+                            a[i].dy = 4 - rand() % 11;
                         }
 
                         x = 0, y = 0, dx = 0, dy = 0;
@@ -792,6 +863,7 @@ int main()
                     else if (gameover_Menu_resume_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
+                        Game = true;
                         gameState = PLAY;
                     }
                     else if (main_menu.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
@@ -802,9 +874,6 @@ int main()
                         enemySpeed_timer = 0;
                         enemy_movement_timer = 0;
 
-                        movementCounter_1p = 0;
-                        movementCounter_2p = 0;
-
                         _1p_points = 0;
                         _2p_points = 0;
 
@@ -814,6 +883,8 @@ int main()
 
                         p1_dead = false;
                         p2_dead = false;
+
+                        Game = true;
 
                         playElapsedTime = 0;
 
@@ -826,6 +897,13 @@ int main()
                             {
                                 grid[i][j] = 0;
                             }
+                        }
+
+                        for (int i = 0; i < enemyCount; i++)
+                        {
+                            x = y = 300;
+                            a[i].dx = 4 - rand() % 11;
+                            a[i].dy = 4 - rand() % 11;
                         }
 
                         x = 0, y = 0, dx = 0, dy = 0;
@@ -1039,6 +1117,9 @@ int main()
                             }
                         }
                     }
+
+                    dullSprite(sTile);
+
                     temp_dx_2 = dx_2; // Store Player 2's current movement
                     temp_dy_2 = dy_2; // Store Player 2's current movement
                     dx_2 = 0;
@@ -1057,6 +1138,9 @@ int main()
                     a[i].dx = 4 - rand() % 11; // Restore random movement for enemies
                     a[i].dy = 4 - rand() % 11;
                 }
+
+                restoreSprite(sTile);
+
                 dx_2 = temp_dx_2; // Reset Player 2's movement to stationary
                 dy_2 = temp_dy_2; // Reset Player 2's movement to stationary
 
@@ -1115,6 +1199,9 @@ int main()
                                 }
                             }
                         }
+
+                        dullSprite(sTile);
+
                         temp_dx = dx; // Store Player 1's current movement
                         temp_dy = dy; // Store Player 1's current movement
                         dx = 0;
@@ -1132,6 +1219,9 @@ int main()
                         a[i].dx = 4 - rand() % 11; // Restore random movement for enemies
                         a[i].dy = 4 - rand() % 11;
                     }
+
+                    restoreSprite(sTile);
+
                     dx = temp_dx; // Reset Player 1's movement to stationary
                     dy = temp_dy; // Reset Player 1's movement to stationary
 
@@ -1165,7 +1255,11 @@ int main()
                 if ((x != prevX || y != prevY) && grid[y][x] != 1)
                 {
                     movementCounter_1p++;
-                    std::cout << "Movement Counter: " << movementCounter_1p << std::endl;
+
+                    tiles_covered_1p++;
+                    movement_sound.play();
+                    std::cout << tiles_covered_1p << std::endl;
+                    reward_p1();
                 }
 
                 if (grid[y][x] == 2 || grid[y][x] == 3)
@@ -1300,9 +1394,13 @@ int main()
                 enemy_movement_timer = 0; // Reset the timer
             }
 
+            // help
+
             if (grid[y][x] == 1)
             {
                 dx = dy = 0;
+
+                tiles_covered_1p = 0;
 
                 for (int i = 0; i < enemyCount; i++)
                     drop(a[i].y / ts, a[i].x / ts);
@@ -1316,7 +1414,13 @@ int main()
                         else if (grid[i][j] == 2 || grid[i][j] == 0)
                         {
                             grid[i][j] = 1;
+                            tiles_covered_1p++;
                         }
+
+                tiles_covered_1p = std::abs(movementCounter_1p - tiles_covered_1p);
+                movementCounter_1p = 0;
+
+                reward_p1();
             }
 
             if (gameMode == TWO_PLAYER)
@@ -1441,15 +1545,17 @@ int main()
                 window.draw(sGameover);
             }
 
-            movement_CounterText_1p.setString("movement counter:" + std::to_string(movementCounter_1p)); // Update the text with the current movement counter
-            point_1p.setString("X:" + std::to_string(movementCounter_1p));
+            movement_CounterText_1p.setString("movement counter:" + std::to_string(tiles_covered_1p));
+            point_1p.setString("POINTS: " + std::to_string(_1p_points));
+            score_x1p.setString("X" + std::to_string(reward_counter_1p));
             window.draw(movement_CounterText_1p);
             window.draw(point_1p);
+            window.draw(score_x1p);
 
             if (gameMode == TWO_PLAYER)
             {
                 movement_CounterText_2p.setString("movement counter:" + std::to_string(movementCounter_2p));
-                point_2p.setString("X" + std::to_string(movementCounter_2p));
+                point_2p.setString("POINTS: " + std::to_string(movementCounter_2p));
                 window.draw(movement_CounterText_2p);
                 window.draw(point_2p);
             }

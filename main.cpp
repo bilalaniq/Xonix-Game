@@ -14,7 +14,7 @@ enum GameState
 {
     MENU,
     PLAY,
-    GAMEOVER,
+    GAMEOVER_MENU,
     LEVELS,
     MODES, // Modes menu
     highscore
@@ -64,6 +64,10 @@ size_t _1p_points = 0;
 size_t _2p_points = 0;
 
 sf::Clock powerUpClock;
+
+sf::Clock playModeClock;
+bool playModeClock_clockRunning = false;
+
 bool isPaused = false;
 bool disablePlayer2Controls = false;
 bool disablePlayer1Controls = false;
@@ -73,7 +77,8 @@ bool p2_dead = false;
 
 // bool streak;
 
-int elapsedTime = 0; // Elapsed time for the game
+int elapsedTime = 0;       // Elapsed time for the game
+float playElapsedTime = 0; // Elapsed time for PLAY mode
 
 const int M = 35;
 const int N = 55;
@@ -446,6 +451,7 @@ int main()
     movement_CounterText_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
     movement_CounterText_1p.setPosition(10, 10);                // Set the position on the screen
     movement_CounterText_1p.setString("0");
+    movement_CounterText_1p.setStyle(sf::Text::Bold);
 
     sf::Text point_1p;
     point_1p.setFont(font);                      // Set the font
@@ -453,22 +459,25 @@ int main()
     point_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
     point_1p.setPosition(10, 30);                // Set the position on the screen
     point_1p.setString("0");
+    point_1p.setStyle(sf::Text::Bold);
 
     sf::Text movement_CounterText_2p;
-    movement_CounterText_2p.setFont(font);                      // Set the font
-    movement_CounterText_2p.setCharacterSize(20);               // Set the text size
-    movement_CounterText_2p.setFillColor(sf::Color(0, 128, 0)); // Set the text color
-    movement_CounterText_2p.setPosition(780, 10);               // Set the position on the screen
+    movement_CounterText_2p.setFont(font);                        // Set the font
+    movement_CounterText_2p.setCharacterSize(20);                 // Set the text size
+    movement_CounterText_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
+    movement_CounterText_2p.setPosition(760, 10);                 // Set the position on the screen
     movement_CounterText_2p.setString("0");
+    movement_CounterText_2p.setStyle(sf::Text::Bold);
 
     sf::Text point_2p;
-    point_2p.setFont(font);                      // Set the font
-    point_2p.setCharacterSize(30);               // Set the text size
-    point_2p.setFillColor(sf::Color(0, 128, 0)); // Set the text color
-    point_2p.setPosition(780, 30);               // Set the position on the screen
+    point_2p.setFont(font);                        // Set the font
+    point_2p.setCharacterSize(30);                 // Set the text size
+    point_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
+    point_2p.setPosition(780, 30);                 // Set the position on the screen
     point_2p.setString("0");
+    point_2p.setStyle(sf::Text::Bold);
 
-    sf::Clock playModeClock; // Clock to track elapsed time for PLAY mode
+    // Clock to track elapsed time for PLAY mode
     sf::Text playElapsedTimeText;
     playElapsedTimeText.setFont(font);                  // Set the font
     playElapsedTimeText.setCharacterSize(20);           // Set the text size
@@ -494,6 +503,10 @@ int main()
         std::cerr << "Error loading gameover_sound!" << std::endl;
         return -1;
     }
+    sf::Sound gameover_sound;
+    gameover_sound.setBuffer(buffer_gameover);
+    gameover_sound.setVolume(100);
+    gameover_sound.setPitch(1.0f);
 
     sf::Texture highscore_texture;
     highscore_texture.loadFromFile("images/high_score.png");
@@ -501,12 +514,70 @@ int main()
     highscore_button.setPosition(800, 500);
     highscore_button.setScale(0.7, 0.7f);
 
-    sf::Sound gameover_sound;
-    gameover_sound.setBuffer(buffer_gameover);
-    gameover_sound.setVolume(100);
-    gameover_sound.setPitch(1.0f);
+    sf::SoundBuffer buffer_power_up;
+    if (!buffer_power_up.loadFromFile("sounds/power_up.wav"))
+    {
+        std::cerr << "Error loading power_up_sound!" << std::endl;
+        return -1;
+    }
 
-    // for the highscore
+    sf::Sound power_up_sound;
+    power_up_sound.setBuffer(buffer_power_up);
+    power_up_sound.setVolume(100);
+    power_up_sound.setPitch(1.0f);
+
+    sf::Texture power_up_texture;
+    if (!power_up_texture.loadFromFile("images/power_up_effect.png"))
+    {
+        std::cerr << "Error loading power_up_effect.png!" << std::endl;
+        return -1;
+    }
+    sf::Sprite power_up(power_up_texture);
+
+    sf::SoundBuffer buffer_p1_terminated;
+    if (!buffer_p1_terminated.loadFromFile("sounds/p1_terminated.wav"))
+    {
+        std::cerr << "Error loading p1_terminated_sound!" << std::endl;
+        return -1;
+    }
+
+    sf::Sound p1_terminated_sound;
+    p1_terminated_sound.setBuffer(buffer_p1_terminated);
+    p1_terminated_sound.setVolume(100);
+    p1_terminated_sound.setPitch(1.0f);
+
+    sf::SoundBuffer buffer_p2_terminated;
+    if (!buffer_p2_terminated.loadFromFile("sounds/p2_terminated.wav"))
+    {
+        std::cerr << "Error loading p2_terminated_sound!" << std::endl;
+        return -1;
+    }
+    sf::Sound p2_terminated_sound;
+    p2_terminated_sound.setBuffer(buffer_p2_terminated);
+    p2_terminated_sound.setVolume(100);
+    p2_terminated_sound.setPitch(1.0f);
+
+    sf::Texture gameover_Menu_restart_texture;
+    gameover_Menu_restart_texture.loadFromFile("images/restart.png");
+    sf::Sprite gameover_Menu_restart_button(gameover_Menu_restart_texture);
+    gameover_Menu_restart_button.setPosition(50, 60);
+    gameover_Menu_restart_button.setScale(0.36f, 0.36f);
+
+    sf::Texture gameover_Menu_resume_texture;
+    gameover_Menu_resume_texture.loadFromFile("images/resume.png");
+    sf::Sprite gameover_Menu_resume_button(gameover_Menu_resume_texture);
+    gameover_Menu_resume_button.setPosition(55, 200);
+    gameover_Menu_resume_button.setScale(0.85f, 0.85f);
+
+    sf::Sprite gameover_menu_stop(stop_buton_texture);
+    gameover_menu_stop.setPosition(50, 450);
+    gameover_menu_stop.setScale(0.5, 0.5f);
+
+    sf::Texture main_menu_texture;
+    main_menu_texture.loadFromFile("images/main_menu.png");
+    sf::Sprite main_menu(main_menu_texture);
+    main_menu.setPosition(30, 210);
+    main_menu.setScale(0.8f, 0.8f);
 
     while (window.isOpen())
     {
@@ -523,19 +594,9 @@ int main()
 
             if (e.type == sf::Event::KeyPressed && e.key.code == sf::Keyboard::Escape)
             {
-                if (gameState == MENU)
-                    window.close();
-                else
+                if (gameState == PLAY)
                 {
-                    for (int i = 1; i < M - 1; i++)
-                        for (int j = 1; j < N - 1; j++)
-                            grid[i][j] = 0;
-
-                    x = y = 0;
-                    x_2 = N - 1;
-                    y_2 = 0;
-                    movementCounter_1p = movementCounter_2p = 0;
-                    Game = true;
+                    gameState = GAMEOVER_MENU; // Assign GAMEOVER_MENU to gameState
                 }
             }
 
@@ -681,6 +742,101 @@ int main()
                         gameState = MENU;
                     }
                 }
+                else if (gameState == GAMEOVER_MENU)
+                {
+                    if (gameover_Menu_restart_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        button_sound.play();
+
+                        continuousModeTimer = 0;
+                        enemySpeed_timer = 0;
+                        enemy_movement_timer = 0;
+
+                        movementCounter_1p = 0;
+                        movementCounter_2p = 0;
+
+                        _1p_points = 0;
+                        _2p_points = 0;
+
+                        isPaused = false;
+                        disablePlayer2Controls = false;
+                        disablePlayer1Controls = false;
+
+                        p1_dead = false;
+                        p2_dead = false;
+
+                        playElapsedTime = 0;
+                        playModeClock.restart();
+
+                        for (int i = 1; i < M - 1; i++)
+                        {
+                            for (int j = 1; j < N - 1; j++)
+                            {
+                                grid[i][j] = 0; // Clear the grid
+                            }
+                        }
+
+                        x = 0, y = 0, dx = 0, dy = 0;
+                        x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
+
+                        // bool streak;
+
+                        elapsedTime = 0; // Elapsed time for the game
+                        gameState = PLAY;
+                    }
+                    else if (gameover_menu_stop.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        button_sound.play();
+                        window.close();
+                    }
+                    else if (gameover_Menu_resume_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        button_sound.play();
+                        gameState = PLAY;
+                    }
+                    else if (main_menu.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    {
+                        button_sound.play();
+
+                        continuousModeTimer = 0;
+                        enemySpeed_timer = 0;
+                        enemy_movement_timer = 0;
+
+                        movementCounter_1p = 0;
+                        movementCounter_2p = 0;
+
+                        _1p_points = 0;
+                        _2p_points = 0;
+
+                        isPaused = false;
+                        disablePlayer2Controls = false;
+                        disablePlayer1Controls = false;
+
+                        p1_dead = false;
+                        p2_dead = false;
+
+                        playElapsedTime = 0;
+
+                        // playModeClock.restart();
+                        playModeClock_clockRunning = false;
+
+                        for (int i = 1; i < M - 1; i++)
+                        {
+                            for (int j = 1; j < N - 1; j++)
+                            {
+                                grid[i][j] = 0;
+                            }
+                        }
+
+                        x = 0, y = 0, dx = 0, dy = 0;
+                        x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
+
+                        // bool streak;
+
+                        elapsedTime = 0; // Elapsed time for the game
+                        gameState = MENU;
+                    }
+                }
             }
         }
 
@@ -710,12 +866,14 @@ int main()
             // Draw the menu elements
             window.clear(sf::Color::White);
             window.draw(menu_background);
+
             window.draw(menu_text);
             window.draw(start_button);
             window.draw(level_button);
             window.draw(mode_button);
             window.draw(stop_button);
             window.draw(highscore_button);
+
             window.display();
             continue;
         }
@@ -798,6 +956,20 @@ int main()
             continue;
         }
 
+        if (gameState == GAMEOVER_MENU)
+        {
+            // help
+
+            window.clear();
+            window.draw(menu_background);
+            window.draw(gameover_Menu_restart_button);
+            window.draw(gameover_menu_stop);
+            window.draw(gameover_Menu_resume_button);
+            window.draw(main_menu);
+            window.display();
+            continue;
+        }
+
         if (gameState == PLAY)
         {
 
@@ -817,32 +989,35 @@ int main()
                     continuousModeTimer = 0; // Reset the timer
                 }
             }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) && !disablePlayer1Controls)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) && !disablePlayer1Controls && !p1_dead)
             {
                 dx = -1;
                 dy = 0;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) && !disablePlayer1Controls)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) && !disablePlayer1Controls && !p1_dead)
             {
                 dx = 1;
                 dy = 0;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up) && !disablePlayer1Controls)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up) && !disablePlayer1Controls && !p1_dead)
             {
                 dx = 0;
                 dy = -1;
             };
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down) && !disablePlayer1Controls)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down) && !disablePlayer1Controls && !p1_dead)
             {
                 dx = 0;
                 dy = 1;
             };
 
             int temp_dx_2, temp_dy_2;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::RShift) && !isPaused && !disablePlayer1Controls)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::RShift) && !isPaused && !disablePlayer1Controls && !p1_dead)
             {
                 if (power_up_1p == false)
                 {
+                    power_up_sound.play();
+                    // Set the scale of the power-up sprite
+
                     power_up_1p = true;
                     isPaused = true;
                     disablePlayer2Controls = true; // Disable Player 2 controls
@@ -892,31 +1067,33 @@ int main()
 
             if (gameMode == TWO_PLAYER)
             {
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) && !disablePlayer2Controls)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) && !disablePlayer2Controls && !p2_dead)
                 {
                     dx_2 = -1;
                     dy_2 = 0;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) && !disablePlayer2Controls)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) && !disablePlayer2Controls && !p2_dead)
                 {
                     dx_2 = 1;
                     dy_2 = 0;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && !disablePlayer2Controls)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && !disablePlayer2Controls && !p2_dead)
                 {
                     dx_2 = 0;
                     dy_2 = -1;
                 };
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) && !disablePlayer2Controls)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) && !disablePlayer2Controls && !p2_dead)
                 {
                     dx_2 = 0;
                     dy_2 = 1;
                 };
                 int temp_dx, temp_dy;
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) && !isPaused && !disablePlayer2Controls)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) && !isPaused && !disablePlayer2Controls && !p2_dead)
                 {
                     if (power_up_2p == false)
                     {
+                        power_up_sound.play();
+
                         power_up_2p = true;
                         isPaused = true;
                         disablePlayer1Controls = true; // Disable Player 1 controls
@@ -991,11 +1168,35 @@ int main()
                     std::cout << "Movement Counter: " << movementCounter_1p << std::endl;
                 }
 
-                // check if the player has hit a wall or an enemy
                 if (grid[y][x] == 2 || grid[y][x] == 3)
                 {
                     if (gameMode == TWO_PLAYER)
+                    {
+                        p1_dead = true;
+                        std::cout << "Player 1 is dead!" << std::endl;
+                        p1_terminated_sound.play();
+
+                        dx = dy = 0;
+                        for (int i = 0; i < M - 1; i++)
+                        {
+                            for (int j = 0; j < N - 1; j++)
+                            {
+                                if (grid[i][j] == 2 || grid[i][j] == 3)
+                                {
+                                    grid[i][j] = 1;
+                                }
+                            }
+                        }
+                        if (p2_dead == true)
+                        {
+                            Game = false;
+                        }
+                    }
+
+                    if (gameMode == SINGLE_PLAYER)
+                    {
                         Game = false;
+                    }
                 }
                 // if the player hits a wall, set the position back to the last valid position
                 if (grid[y][x] == 0)
@@ -1027,9 +1228,26 @@ int main()
                         std::cout << "Movement Counter 2p: " << movementCounter_2p << std::endl;
                     }
 
-                    if (grid[y_2][x_2] == 3 || grid[y_2][x_2] == 2) // Collision with wall or Player 1's trail
+                    if (grid[y_2][x_2] == 3 || grid[y_2][x_2] == 2)
                     {
-                        Game = false;
+                        p2_dead = true;
+                        std::cout << "Player 2 is dead!" << std::endl;
+                        p2_terminated_sound.play();
+
+                        for (int i = 0; i < M - 1; i++)
+                        {
+                            for (int j = 0; j < N - 1; j++)
+                            {
+                                if (grid[i][j] == 3 || grid[i][j] == 2)
+                                {
+                                    grid[i][j] = 1;
+                                }
+                            }
+                        }
+                        if (p1_dead)
+                        {
+                            Game = false;
+                        }
                     }
 
                     if (grid[y_2][x_2] == 0) // Only mark empty cells
@@ -1097,7 +1315,7 @@ int main()
                         }
                         else if (grid[i][j] == 2 || grid[i][j] == 0)
                         {
-                            grid[i][j] = 1; // this will replace the 2 with the 1 in the grid
+                            grid[i][j] = 1;
                         }
             }
 
@@ -1126,9 +1344,48 @@ int main()
 
             for (int i = 0; i < enemyCount; i++)
             {
-                if (grid[a[i].y / ts][a[i].x / ts] == 2 || grid[a[i].y / ts][a[i].x / ts] == 3)
+                if (grid[a[i].y / ts][a[i].x / ts] == 2)
                 {
-                    Game = false;
+                    p1_dead = true;
+                    p1_terminated_sound.play();
+                    for (int i = 0; i < M - 1; i++)
+                    {
+                        for (int j = 0; j < N - 1; j++)
+                        {
+                            if (grid[i][j] == 2)
+                            {
+                                grid[i][j] = 1;
+                            }
+                        }
+                    }
+                    if (p2_dead == true && gameMode == TWO_PLAYER)
+                    {
+                        Game = false;
+                    }
+
+                    if (gameMode == SINGLE_PLAYER)
+                    {
+                        Game = false;
+                    }
+                }
+                if (grid[a[i].y / ts][a[i].x / ts] == 3)
+                {
+                    p2_dead = true;
+                    p2_terminated_sound.play();
+                    for (int i = 0; i < M - 1; i++)
+                    {
+                        for (int j = 0; j < N - 1; j++)
+                        {
+                            if (grid[i][j] == 3)
+                            {
+                                grid[i][j] = 1;
+                            }
+                        }
+                    }
+                    if (p1_dead == true && gameMode == TWO_PLAYER)
+                    {
+                        Game = false;
+                    }
                 }
             }
 
@@ -1197,15 +1454,31 @@ int main()
                 window.draw(point_2p);
             }
 
-            if (playModeClock.getElapsedTime().asSeconds() == 0) // Restart clock only once
+            if (playModeClock.getElapsedTime().asSeconds() == 0 || !playModeClock_clockRunning) // Restart clock only once
             {
+                playModeClock_clockRunning = true;
+
                 playModeClock.restart();
             }
 
-            float playElapsedTime = playModeClock.getElapsedTime().asSeconds();
+            playElapsedTime = playModeClock.getElapsedTime().asSeconds();
             playElapsedTimeText.setString("Time: " + std::to_string(static_cast<int>(playElapsedTime)) + "s");
 
             window.draw(playElapsedTimeText);
+
+            if (power_up_1p)
+            {
+                power_up.setScale(4.0f, 4.0f);
+                power_up.setPosition(x * ts + ts / 2 - 55, y * ts + ts / 2 - 55);
+                window.draw(power_up);
+            }
+
+            if (power_up_2p)
+            {
+                power_up.setScale(4.0f, 4.0f);
+                power_up.setPosition(x_2 * ts + ts / 2 - 55, y_2 * ts + ts / 2 - 55);
+                window.draw(power_up);
+            }
 
             window.display();
         }

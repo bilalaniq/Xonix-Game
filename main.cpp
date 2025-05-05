@@ -16,7 +16,6 @@ enum GameState
     MENU,
     PLAY,
     GAMEOVER_MENU,
-    LEVELS,
     MODES, // Modes menu
     highscore
 };
@@ -25,13 +24,6 @@ enum GameMode
 {
     SINGLE_PLAYER, // 1P mode
     TWO_PLAYER     // 2P mode
-};
-
-enum GameLevel
-{
-    LEVEL_ONE,
-    LEVEL_TWO,
-    LEVEL_THREE
 };
 
 enum difficulty
@@ -51,7 +43,6 @@ enum movement_type
 
 GameState gameState = MENU;
 difficulty gameDifficulty = EASY;
-GameLevel gameLevel = LEVEL_ONE;
 GameMode gameMode = SINGLE_PLAYER;
 
 float continuousModeTimer = 0;
@@ -66,6 +57,9 @@ int movementCounter_2p = 0;
 
 int _1p_points = 0;
 int _2p_points = 0;
+
+bool lock_1p = false;
+bool lock_2p = false;
 
 int reward_counter_1p = 1;
 int reward_counter_2p = 1;
@@ -291,6 +285,55 @@ void construct_boundry()
                 grid[i][j] = 1;
 }
 
+bool floodFillAndCheck(int i, int j, int playerTrail)
+{
+    // Check boundaries to avoid out-of-bounds access
+    if (i < 0 || i >= M || j < 0 || j >= N)
+        return false;
+
+    // If the cell is already part of the player's trail or visited, return true
+    if (grid[i][j] == playerTrail || grid[i][j] == -1)
+        return true;
+
+    // If the cell is empty and on the boundary, it's not surrounded
+    if (grid[i][j] == 0 && (i == 0 || i == M - 1 || j == 0 || j == N - 1))
+        return false;
+
+    // If the cell is not empty, return true
+    if (grid[i][j] != 0)
+        return true;
+
+    // Mark the cell as visited
+    grid[i][j] = -1;
+
+    // Recursively check all neighbors
+    bool top = floodFillAndCheck(i - 1, j, playerTrail);
+    bool bottom = floodFillAndCheck(i + 1, j, playerTrail);
+    bool left = floodFillAndCheck(i, j - 1, playerTrail);
+    bool right = floodFillAndCheck(i, j + 1, playerTrail);
+
+    // If any neighbor is not surrounded, the area is not surrounded
+    return top && bottom && left && right;
+}
+
+bool isSurroundedByTrail(int i, int j, int playerTrail)
+{
+    // Perform flood-fill and check if the area is surrounded
+    bool isSurrounded = floodFillAndCheck(i, j, playerTrail);
+
+    // Restore the grid (convert -1 back to 0)
+    for (int x = 0; x < M; x++)
+    {
+        for (int y = 0; y < N; y++)
+        {
+            if (grid[x][y] == -1)
+                grid[x][y] = 0;
+        }
+    }
+
+    return isSurrounded;
+}
+
 void dullSprite(sf::Sprite &sprite)
 {
     sprite.setColor(sf::Color(128, 128, 128, 255));
@@ -303,29 +346,98 @@ void restoreSprite(sf::Sprite &sprite)
 
 void reward_p1()
 {
+
     if (tiles_covered_1p >= 10 && reward_counter_1p <= 3)
     {
-        // Double points for capturing more than 10 tiles
         _1p_points += tiles_covered_1p * 2;
         reward_counter_1p++;
         std::cout << "Reward 1: " << reward_counter_1p << " (×2 points)" << std::endl;
-        tiles_covered_1p = 0; // Reset tiles covered
+        tiles_covered_1p = 0;
     }
     else if (tiles_covered_1p >= 5 && reward_counter_1p > 3 && reward_counter_1p <= 5)
     {
-        // Double points for capturing more than 5 tiles after 3 rewards
         _1p_points += tiles_covered_1p * 2;
         reward_counter_1p++;
         std::cout << "Reward Counter2: " << reward_counter_1p << " (×2 points, reduced threshold)" << std::endl;
-        tiles_covered_1p = 0; // Reset tiles covered
+        tiles_covered_1p = 0;
     }
     else if (tiles_covered_1p >= 5 && reward_counter_1p > 5)
     {
-        // Quadruple points for capturing more than 5 tiles after 5 rewards
         _1p_points += tiles_covered_1p * 4;
         reward_counter_1p++;
         std::cout << "Reward Counter3: " << reward_counter_1p << " (×4 points)" << std::endl;
-        tiles_covered_1p = 0; // Reset tiles covered
+        tiles_covered_1p = 0;
+    }
+}
+
+void reward_p2()
+{
+
+    if (tiles_covered_2p >= 10 && reward_counter_2p <= 3)
+    {
+        _2p_points += tiles_covered_2p * 2;
+        reward_counter_2p++;
+        std::cout << "Reward 1 (P2): " << reward_counter_2p << " (×2 points)" << std::endl;
+        tiles_covered_2p = 0;
+    }
+    else if (tiles_covered_2p >= 5 && reward_counter_2p > 3 && reward_counter_2p <= 5)
+    {
+        _2p_points += tiles_covered_2p * 2;
+        reward_counter_2p++;
+        std::cout << "Reward Counter2 (P2): " << reward_counter_2p << " (×2 points, reduced threshold)" << std::endl;
+        tiles_covered_2p = 0;
+    }
+    else if (tiles_covered_2p >= 5 && reward_counter_2p > 5)
+    {
+        _2p_points += tiles_covered_2p * 4;
+        reward_counter_2p++;
+        std::cout << "Reward Counter3 (P2): " << reward_counter_2p << " (×4 points)" << std::endl;
+        tiles_covered_2p = 0;
+    }
+}
+
+void floodFill(int i, int j, int playerTrail)
+{
+    // Check boundaries to avoid out-of-bounds access
+    if (i < 0 || i >= M || j < 0 || j >= N)
+        return;
+
+    // If the cell is not empty (0) or is a wall (1), stop processing this cell
+    if (grid[i][j] != 0)
+        return;
+
+    // Mark the cell as part of the player's trail
+    std::cout << "called" << std::endl;
+    grid[i][j] = playerTrail;
+
+    // Recursively flood-fill all neighbors (4 sides)
+    floodFill(i - 1, j, playerTrail); // Top
+    floodFill(i + 1, j, playerTrail); // Bottom
+    floodFill(i, j - 1, playerTrail); // Left
+    floodFill(i, j + 1, playerTrail); // Right
+}
+
+void processFloodFill(int playerTrail)
+{
+    for (int i = 0; i < M; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            // Check if the current cell belongs to the player's trail
+            if (grid[i][j] == playerTrail)
+            {
+                // Call floodFill for all four sides
+                if (i > 0)
+                    floodFill(i - 1, j, playerTrail); // Top
+                if (i < M - 1)
+                    floodFill(i + 1, j, playerTrail); // Bottom
+                if (j > 0)
+                    floodFill(i, j - 1, playerTrail); // Left
+                if (j < N - 1)
+                    floodFill(i, j + 1, playerTrail); // Right
+                return;                               // Exit after processing the first valid cell
+            }
+        }
     }
 }
 
@@ -366,6 +478,13 @@ int main()
 
     construct_boundry(); // for making the boundry constructed
 
+    sf::Font font;
+    if (!font.loadFromFile("images/Arial.ttf"))
+    {
+        std::cerr << "Error loading font!" << std::endl;
+        return -1;
+    }
+
     sf::Texture background_texture;
     if (!background_texture.loadFromFile("images/menu_bg.png"))
     {
@@ -386,29 +505,29 @@ int main()
     menu_text.setPosition(50, 20);
     menu_text.setScale(0.4f, 0.4f);
 
-    sf::Texture start_buton_texture;
-    start_buton_texture.loadFromFile("images/start_button.png");
-    sf::Sprite start_button(start_buton_texture);
-    start_button.setPosition(50, 150);
-    start_button.setScale(0.5f, 0.5f);
+    sf::Text start_button_text;
+    start_button_text.setFont(font);
+    start_button_text.setString("Start");
+    start_button_text.setCharacterSize(50);
+    start_button_text.setFillColor(sf::Color::White);
+    start_button_text.setPosition(50, 150);
+    start_button_text.setStyle(sf::Text::Bold);
 
-    sf::Texture level_buton_texture;
-    level_buton_texture.loadFromFile("images/levels.png");
-    sf::Sprite level_button(level_buton_texture);
-    level_button.setPosition(50, 280);
-    level_button.setScale(1.4f, 1.4f);
+    sf::Text mode_button_text;
+    mode_button_text.setFont(font);                  // Set the font
+    mode_button_text.setString("Modes");             // Set the text
+    mode_button_text.setCharacterSize(50);           // Set the text size
+    mode_button_text.setFillColor(sf::Color::White); // Set the text color
+    mode_button_text.setPosition(50, 390);           // Set the position
+    mode_button_text.setStyle(sf::Text::Bold);
 
-    sf::Texture mode_buton_texture;
-    mode_buton_texture.loadFromFile("images/modes.png");
-    sf::Sprite mode_button(mode_buton_texture);
-    mode_button.setPosition(50, 390);
-    mode_button.setScale(1.4f, 1.4f);
-
-    sf::Texture stop_buton_texture;
-    stop_buton_texture.loadFromFile("images/stop_button.png");
-    sf::Sprite stop_button(stop_buton_texture);
-    stop_button.setPosition(50, 500);
-    stop_button.setScale(0.5, 0.5f);
+    sf::Text stop_button_text;
+    stop_button_text.setFont(font);                  // Set the font
+    stop_button_text.setString("Stop");              // Set the text
+    stop_button_text.setCharacterSize(50);           // Set the text size
+    stop_button_text.setFillColor(sf::Color::White); // Set the text color
+    stop_button_text.setPosition(50, 500);           // Set the position
+    stop_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Texture _1p_buton_texture;
     _1p_buton_texture.loadFromFile("images/1p.png");
@@ -422,23 +541,29 @@ int main()
     _2p_button.setPosition(670, 70);
     _2p_button.setScale(0.5, 0.5f);
 
-    sf::Texture easy_buton_texture;
-    easy_buton_texture.loadFromFile("images/easy.png");
-    sf::Sprite easy_button(easy_buton_texture);
-    easy_button.setPosition(350, 150);
-    easy_button.setScale(1.2, 1.2f);
+    sf::Text easy_button_text;
+    easy_button_text.setFont(font);                  // Set the font
+    easy_button_text.setString("Easy");              // Set the text
+    easy_button_text.setCharacterSize(50);           // Set the text size
+    easy_button_text.setFillColor(sf::Color::White); // Set the text color
+    easy_button_text.setPosition(350, 150);          // Set the position
+    easy_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Texture medium_buton_texture;
-    medium_buton_texture.loadFromFile("images/medium.png");
-    sf::Sprite medium_button(medium_buton_texture);
-    medium_button.setPosition(350, 250);
-    medium_button.setScale(1.2, 1.2f);
+    sf::Text medium_button_text;
+    medium_button_text.setFont(font);                  // Set the font
+    medium_button_text.setString("Medium");            // Set the text
+    medium_button_text.setCharacterSize(50);           // Set the text size
+    medium_button_text.setFillColor(sf::Color::White); // Set the text color
+    medium_button_text.setPosition(350, 250);          // Set the position
+    medium_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Texture hard_buton_texture;
-    hard_buton_texture.loadFromFile("images/hard.png");
-    sf::Sprite hard_button(hard_buton_texture);
-    hard_button.setPosition(350, 350);
-    hard_button.setScale(1.2, 1.2f);
+    sf::Text hard_button_text;
+    hard_button_text.setFont(font);                  // Set the font
+    hard_button_text.setString("Hard");              // Set the text
+    hard_button_text.setCharacterSize(50);           // Set the text size
+    hard_button_text.setFillColor(sf::Color::White); // Set the text color
+    hard_button_text.setPosition(350, 350);          // Set the position
+    hard_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Texture ContinuousMode;
     ContinuousMode.loadFromFile("images/ContinuousMode.png");
@@ -446,57 +571,21 @@ int main()
     continuous_button.setPosition(350, 50);
     continuous_button.setScale(1.7, 1.7f);
 
-    sf::Texture back_button_texture;
-    back_button_texture.loadFromFile("images/back.png");
-    sf::Sprite back_button_mode(back_button_texture);
-    back_button_mode.setPosition(350, 450);
-    back_button_mode.setScale(1.2, 1.2f);
+    sf::Text back_button_mode_text;
+    back_button_mode_text.setFont(font);                  // Set the font
+    back_button_mode_text.setString("Back");              // Set the text
+    back_button_mode_text.setCharacterSize(50);           // Set the text size
+    back_button_mode_text.setFillColor(sf::Color::White); // Set the text color
+    back_button_mode_text.setPosition(350, 450);          // Set the position
+    back_button_mode_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Sprite back_button_level(back_button_texture);
-    back_button_level.setPosition(350, 500);
-    back_button_level.setScale(1.2, 1.2f);
-
-    sf::Sprite back_button_score(back_button_texture);
-    back_button_score.setPosition(350, 500);
-    back_button_level.setScale(1.2, 1.2f);
-
-    sf::Texture levle_one_texture;
-    levle_one_texture.loadFromFile("images/1.png");
-    sf::Sprite level_one(levle_one_texture);
-    level_one.setPosition(50, 200);
-    level_one.setScale(0.5, 0.5f);
-
-    sf::Texture level_two_texture;
-    level_two_texture.loadFromFile("images/2.png");
-    sf::Sprite level_two(level_two_texture);
-    level_two.setPosition(400, 200);
-    level_two.setScale(0.5, 0.5f);
-
-    sf::Texture level_three_texture;
-    level_three_texture.loadFromFile("images/3.png");
-    sf::Sprite level_three(level_three_texture);
-    level_three.setPosition(700, 200);
-    level_three.setScale(0.5, 0.5f);
-
-    sf::Font font;
-    if (!font.loadFromFile("images/Arial.ttf"))
-    {
-        std::cerr << "Error loading font!" << std::endl;
-        return -1;
-    }
-
-    sf::Text text1("select level", font, 50);
-    text1.setFillColor(sf::Color::Black);
-    text1.setPosition(50, 50);
-    text1.setStyle(sf::Text::Bold);
-
-    sf::Text movement_CounterText_1p;
-    movement_CounterText_1p.setFont(font);                      // Set the font
-    movement_CounterText_1p.setCharacterSize(20);               // Set the text size
-    movement_CounterText_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
-    movement_CounterText_1p.setPosition(10, 10);                // Set the position on the screen
-    movement_CounterText_1p.setString("0");
-    movement_CounterText_1p.setStyle(sf::Text::Bold);
+    sf::Text back_button_score_text;
+    back_button_score_text.setFont(font);                  // Set the font
+    back_button_score_text.setString("Back");              // Set the text
+    back_button_score_text.setCharacterSize(50);           // Set the text size
+    back_button_score_text.setFillColor(sf::Color::White); // Set the text color
+    back_button_score_text.setPosition(350, 500);          // Set the position
+    back_button_score_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Text point_1p;
     point_1p.setFont(font);                      // Set the font
@@ -514,19 +603,19 @@ int main()
     score_x1p.setString("0");
     score_x1p.setStyle(sf::Text::Bold);
 
-    sf::Text movement_CounterText_2p;
-    movement_CounterText_2p.setFont(font);                        // Set the font
-    movement_CounterText_2p.setCharacterSize(20);                 // Set the text size
-    movement_CounterText_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
-    movement_CounterText_2p.setPosition(760, 10);                 // Set the position on the screen
-    movement_CounterText_2p.setString("0");
-    movement_CounterText_2p.setStyle(sf::Text::Bold);
+    sf::Text score_x2p;
+    score_x2p.setFont(font);                        // Set the font
+    score_x2p.setCharacterSize(25);                 // Set the text size
+    score_x2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color (orange for Player 2)
+    score_x2p.setPosition(815, 50);                 // Set the position for Player 2
+    score_x2p.setString("0");                       // Initialize with "0"
+    score_x2p.setStyle(sf::Text::Bold);             // Make the text bold
 
     sf::Text point_2p;
     point_2p.setFont(font);                        // Set the font
     point_2p.setCharacterSize(25);                 // Set the text size
     point_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
-    point_2p.setPosition(780, 30);                 // Set the position on the screen
+    point_2p.setPosition(815, 30);                 // Set the position on the screen
     point_2p.setString("0");
     point_2p.setStyle(sf::Text::Bold);
 
@@ -610,27 +699,37 @@ int main()
     p2_terminated_sound.setVolume(100);
     p2_terminated_sound.setPitch(1.0f);
 
-    sf::Texture gameover_Menu_restart_texture;
-    gameover_Menu_restart_texture.loadFromFile("images/restart.png");
-    sf::Sprite gameover_Menu_restart_button(gameover_Menu_restart_texture);
-    gameover_Menu_restart_button.setPosition(50, 60);
-    gameover_Menu_restart_button.setScale(0.36f, 0.36f);
+    sf::Text gameover_Menu_restart_text;
+    gameover_Menu_restart_text.setFont(font);                  // Set the font
+    gameover_Menu_restart_text.setString("Restart");           // Set the text
+    gameover_Menu_restart_text.setCharacterSize(50);           // Set the text size
+    gameover_Menu_restart_text.setFillColor(sf::Color::White); // Set the text color
+    gameover_Menu_restart_text.setPosition(50, 60);            // Set the position
+    gameover_Menu_restart_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Texture gameover_Menu_resume_texture;
-    gameover_Menu_resume_texture.loadFromFile("images/resume.png");
-    sf::Sprite gameover_Menu_resume_button(gameover_Menu_resume_texture);
-    gameover_Menu_resume_button.setPosition(55, 200);
-    gameover_Menu_resume_button.setScale(0.85f, 0.85f);
+    sf::Text gameover_Menu_resume_text;
+    gameover_Menu_resume_text.setFont(font);                  // Set the font
+    gameover_Menu_resume_text.setString("Resume");            // Set the text
+    gameover_Menu_resume_text.setCharacterSize(50);           // Set the text size
+    gameover_Menu_resume_text.setFillColor(sf::Color::White); // Set the text color
+    gameover_Menu_resume_text.setPosition(55, 200);           // Set the position
+    gameover_Menu_resume_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Sprite gameover_menu_stop(stop_buton_texture);
-    gameover_menu_stop.setPosition(50, 450);
-    gameover_menu_stop.setScale(0.5, 0.5f);
+    sf::Text gameover_menu_stop_text;
+    gameover_menu_stop_text.setFont(font);                  // Set the font
+    gameover_menu_stop_text.setString("Stop");              // Set the text
+    gameover_menu_stop_text.setCharacterSize(50);           // Set the text size
+    gameover_menu_stop_text.setFillColor(sf::Color::White); // Set the text color
+    gameover_menu_stop_text.setPosition(50, 450);           // Set the position
+    gameover_menu_stop_text.setStyle(sf::Text::Bold);       // Make the text bold
 
-    sf::Texture main_menu_texture;
-    main_menu_texture.loadFromFile("images/main_menu.png");
-    sf::Sprite main_menu(main_menu_texture);
-    main_menu.setPosition(30, 210);
-    main_menu.setScale(0.8f, 0.8f);
+    sf::Text main_menu_text;
+    main_menu_text.setFont(font);                  // Set the font
+    main_menu_text.setString("Main Menu");         // Set the text
+    main_menu_text.setCharacterSize(50);           // Set the text size
+    main_menu_text.setFillColor(sf::Color::White); // Set the text color
+    main_menu_text.setPosition(30, 300);           // Set the position
+    main_menu_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::SoundBuffer buffer_movement;
     if (!buffer_movement.loadFromFile("sounds/movement_effect.wav"))
@@ -671,22 +770,18 @@ int main()
 
                 if (gameState == MENU)
                 {
-                    if (start_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    if (start_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         gameState = PLAY;
                     }
-                    else if (level_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
-                    {
-                        button_sound.play();
-                        gameState = LEVELS;
-                    }
-                    else if (mode_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+
+                    else if (mode_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         gameState = MODES;
                     }
-                    else if (stop_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (stop_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         window.close();
@@ -696,17 +791,12 @@ int main()
                     {
                         sf::Vector2i mousePos = sf::Mouse::getPosition(window);
 
-                        if (start_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        if (start_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             button_sound.play();
                             gameState = PLAY;
                         }
-                        else if (level_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            button_sound.play();
-                            gameState = LEVELS;
-                        }
-                        else if (mode_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
+                        else if (mode_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                         {
                             button_sound.play();
                             gameState = MODES;
@@ -732,26 +822,26 @@ int main()
                         button_sound.play();
                         std::cout << "2P mode selected!" << std::endl;
                     }
-                    else if (back_button_mode.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (back_button_mode_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         gameState = MENU;
                     }
-                    else if (easy_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (easy_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = EASY;
                         enemyCount = 2; // Set enemy count for easy mode
                         button_sound.play();
                         std::cout << "Easy mode selected!" << std::endl;
                     }
-                    else if (medium_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (medium_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = MEDIUM;
                         enemyCount = 4; // Set enemy count for medium mode
                         button_sound.play();
                         std::cout << "Medium mode selected!" << std::endl;
                     }
-                    else if (hard_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (hard_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         gameDifficulty = HARD;
                         enemyCount = 6; // Set enemy count for hard mode
@@ -765,43 +855,10 @@ int main()
                         std::cout << "Continuous mode selected!" << std::endl;
                     }
                 }
-                else if (gameState == LEVELS)
-                {
-                    if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
-                    {
-                        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
 
-                        if (level_one.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            gameLevel = LEVEL_ONE;
-                            gameState = MENU;
-                            button_sound.play();
-                            std::cout << "Level 1 selected!" << std::endl;
-                        }
-                        else if (level_two.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            gameLevel = LEVEL_TWO;
-                            gameState = MENU;
-                            button_sound.play();
-                            std::cout << "Level 2 selected!" << std::endl;
-                        }
-                        else if (level_three.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            gameLevel = LEVEL_THREE;
-                            gameState = MENU;
-                            button_sound.play();
-                            std::cout << "Level 3 selected!" << std::endl;
-                        }
-                        else if (back_button_level.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            button_sound.play();
-                            gameState = MENU;
-                        }
-                    }
-                }
                 else if (gameState == highscore)
                 {
-                    if (back_button_score.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    if (back_button_score_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         gameState = MENU;
@@ -809,7 +866,7 @@ int main()
                 }
                 else if (gameState == GAMEOVER_MENU)
                 {
-                    if (gameover_Menu_restart_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    if (gameover_Menu_restart_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
 
@@ -855,18 +912,18 @@ int main()
                         elapsedTime = 0; // Elapsed time for the game
                         gameState = PLAY;
                     }
-                    else if (gameover_menu_stop.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (gameover_menu_stop_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         window.close();
                     }
-                    else if (gameover_Menu_resume_button.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (gameover_Menu_resume_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         Game = true;
                         gameState = PLAY;
                     }
-                    else if (main_menu.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (main_menu_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
 
@@ -925,20 +982,6 @@ int main()
             const float hoverScale = 0.52f;
             const float normalScale = 0.5f;
 
-            sf::Vector2f currentScale_start = start_button.getScale();
-
-            // "Start" button
-            if (start_button.getGlobalBounds().contains((float)(mousePos.x), (float)(mousePos.y)))
-            {
-                if (currentScale_start.x < hoverScale)
-                    start_button.setScale(currentScale_start.x + 0.01f, currentScale_start.y + 0.01f);
-            }
-            else
-            {
-                if (currentScale_start.x > normalScale)
-                    start_button.setScale(currentScale_start.x - 0.01f, currentScale_start.y - 0.01f);
-            }
-
             // sf::Vector2f currentScale = mode_button.getScale();
 
             // Draw the menu elements
@@ -946,10 +989,9 @@ int main()
             window.draw(menu_background);
 
             window.draw(menu_text);
-            window.draw(start_button);
-            window.draw(level_button);
-            window.draw(mode_button);
-            window.draw(stop_button);
+            window.draw(start_button_text);
+            window.draw(mode_button_text);
+            window.draw(stop_button_text);
             window.draw(highscore_button);
 
             window.display();
@@ -986,7 +1028,7 @@ int main()
 
             window.clear();
             window.draw(menu_background);
-            window.draw(back_button_score);
+            window.draw(back_button_score_text);
 
             for (int i = 0; i < 5; i++)
             {
@@ -1008,27 +1050,11 @@ int main()
 
             window.draw(continuous_button);
 
-            window.draw(easy_button);
-            window.draw(medium_button);
-            window.draw(hard_button);
+            window.draw(easy_button_text);
+            window.draw(medium_button_text);
+            window.draw(hard_button_text);
 
-            window.draw(back_button_mode);
-
-            window.display();
-            continue;
-        }
-
-        if (gameState == LEVELS)
-        {
-            window.clear();
-            window.draw(menu_background);
-
-            window.draw(level_one);
-            window.draw(level_two);
-            window.draw(level_three);
-            window.draw(text1);
-
-            window.draw(back_button_level);
+            window.draw(back_button_mode_text);
 
             window.display();
             continue;
@@ -1036,14 +1062,13 @@ int main()
 
         if (gameState == GAMEOVER_MENU)
         {
-            // help
 
             window.clear();
             window.draw(menu_background);
-            window.draw(gameover_Menu_restart_button);
-            window.draw(gameover_menu_stop);
-            window.draw(gameover_Menu_resume_button);
-            window.draw(main_menu);
+            window.draw(gameover_Menu_restart_text);
+            window.draw(gameover_menu_stop_text);
+            window.draw(gameover_Menu_resume_text);
+            window.draw(main_menu_text);
             window.display();
             continue;
         }
@@ -1319,7 +1344,10 @@ int main()
                     if ((x_2 != prevX_2 || y_2 != prevY_2) && grid[y_2][x_2] != 1)
                     {
                         movementCounter_2p++;
-                        std::cout << "Movement Counter 2p: " << movementCounter_2p << std::endl;
+                        tiles_covered_2p++;
+                        movement_sound.play();
+                        std::cout << tiles_covered_2p << std::endl;
+                        reward_p2();
                     }
 
                     if (grid[y_2][x_2] == 3 || grid[y_2][x_2] == 2)
@@ -1403,7 +1431,11 @@ int main()
                 tiles_covered_1p = 0;
 
                 for (int i = 0; i < enemyCount; i++)
+                {
                     drop(a[i].y / ts, a[i].x / ts);
+                }
+
+                processFloodFill(2);
 
                 for (int i = 0; i < M; i++)
                     for (int j = 0; j < N; j++)
@@ -1411,85 +1443,90 @@ int main()
                         {
                             grid[i][j] = 0;
                         }
-                        else if (grid[i][j] == 2 || grid[i][j] == 0)
+                        else if (grid[i][j] == 2)
                         {
                             grid[i][j] = 1;
                             tiles_covered_1p++;
                         }
 
-                tiles_covered_1p = std::abs(movementCounter_1p - tiles_covered_1p);
                 movementCounter_1p = 0;
 
                 reward_p1();
             }
 
-            if (gameMode == TWO_PLAYER)
+            if (gameMode == TWO_PLAYER && grid[y_2][x_2] == 1)
             {
 
-                if (grid[y_2][x_2] == 1)
+                dx_2 = dy_2 = 0;
+
+                tiles_covered_2p = 0;
+
+                for (int i = 0; i < enemyCount; i++)
+                    drop(a[i].y / ts, a[i].x / ts);
+
+                processFloodFill(3);
+
+                for (int i = 0; i < M; i++)
+                    for (int j = 0; j < N; j++)
+                        if (grid[i][j] == -1)
+                        {
+                            grid[i][j] = 0;
+                        }
+                        else if (grid[i][j] == 3)
+                        {
+                            grid[i][j] = 1;
+                            tiles_covered_2p++;
+                        }
+
+                tiles_covered_2p = std::abs(movementCounter_2p - tiles_covered_2p);
+                movementCounter_2p = 0;
+                reward_p2();
+            }
+        }
+
+        for (int i = 0; i < enemyCount; i++)
+        {
+            if (grid[a[i].y / ts][a[i].x / ts] == 2)
+            {
+                p1_dead = true;
+                p1_terminated_sound.play();
+                for (int i = 0; i < M - 1; i++)
                 {
-                    dx_2 = dy_2 = 0;
+                    for (int j = 0; j < N - 1; j++)
+                    {
+                        if (grid[i][j] == 2)
+                        {
+                            grid[i][j] = 1;
+                        }
+                    }
+                }
+                if (p2_dead == true && gameMode == TWO_PLAYER)
+                {
+                    Game = false;
+                }
 
-                    for (int i = 0; i < enemyCount; i++)
-                        drop(a[i].y / ts, a[i].x / ts);
-
-                    for (int i = 0; i < M; i++)
-                        for (int j = 0; j < N; j++)
-                            if (grid[i][j] == -1)
-                            {
-                                grid[i][j] = 0;
-                            }
-                            else if (grid[i][j] == 3 || grid[i][j] == 0)
-                            {
-                                grid[i][j] = 1;
-                            }
+                if (gameMode == SINGLE_PLAYER)
+                {
+                    Game = false;
                 }
             }
-
-            for (int i = 0; i < enemyCount; i++)
+            if (grid[a[i].y / ts][a[i].x / ts] == 3)
             {
-                if (grid[a[i].y / ts][a[i].x / ts] == 2)
+                p2_dead = true;
+                p2_terminated_sound.play();
+                for (int i = 0; i < M - 1; i++)
                 {
-                    p1_dead = true;
-                    p1_terminated_sound.play();
-                    for (int i = 0; i < M - 1; i++)
+                    for (int j = 0; j < N - 1; j++)
                     {
-                        for (int j = 0; j < N - 1; j++)
+                        if (grid[i][j] == 3)
                         {
-                            if (grid[i][j] == 2)
-                            {
-                                grid[i][j] = 1;
-                            }
+                            grid[i][j] = 1;
                         }
-                    }
-                    if (p2_dead == true && gameMode == TWO_PLAYER)
-                    {
-                        Game = false;
-                    }
-
-                    if (gameMode == SINGLE_PLAYER)
-                    {
-                        Game = false;
                     }
                 }
-                if (grid[a[i].y / ts][a[i].x / ts] == 3)
+                if (p1_dead == true && gameMode == TWO_PLAYER)
                 {
-                    p2_dead = true;
-                    p2_terminated_sound.play();
-                    for (int i = 0; i < M - 1; i++)
-                    {
-                        for (int j = 0; j < N - 1; j++)
-                        {
-                            if (grid[i][j] == 3)
-                            {
-                                grid[i][j] = 1;
-                            }
-                        }
-                    }
-                    if (p1_dead == true && gameMode == TWO_PLAYER)
-                    {
-                        Game = false;
-                    }
+                    Game = false;
                 }
             }
 
@@ -1545,19 +1582,18 @@ int main()
                 window.draw(sGameover);
             }
 
-            movement_CounterText_1p.setString("movement counter:" + std::to_string(tiles_covered_1p));
             point_1p.setString("POINTS: " + std::to_string(_1p_points));
             score_x1p.setString("X" + std::to_string(reward_counter_1p));
-            window.draw(movement_CounterText_1p);
             window.draw(point_1p);
             window.draw(score_x1p);
 
             if (gameMode == TWO_PLAYER)
             {
-                movement_CounterText_2p.setString("movement counter:" + std::to_string(movementCounter_2p));
-                point_2p.setString("POINTS: " + std::to_string(movementCounter_2p));
-                window.draw(movement_CounterText_2p);
+                point_2p.setString("POINTS: " + std::to_string(_2p_points));
+                score_x2p.setString("X" + std::to_string(reward_counter_2p));
+
                 window.draw(point_2p);
+                window.draw(score_x2p);
             }
 
             if (playModeClock.getElapsedTime().asSeconds() == 0 || !playModeClock_clockRunning) // Restart clock only once

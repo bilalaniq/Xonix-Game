@@ -76,6 +76,8 @@ bool disablePlayer1Controls = false;
 bool p1_dead = false;
 bool p2_dead = false;
 
+bool New_highscore = false;
+
 // bool streak;
 
 int elapsedTime = 0;
@@ -216,13 +218,41 @@ struct ScoreEntry
     int timeTaken;
 };
 
+void ensureScoreFileExists(const std::string &filename = "scores.txt")
+{
+    std::ifstream file(filename);
+    if (!file) // If the file does not exist
+    {
+        std::cerr << "File not found. Creating a new file: " << filename << std::endl;
+        std::ofstream newFile(filename); // Create the file
+        if (!newFile)
+        {
+            std::cerr << "Error: Could not create file " << filename << "!" << std::endl;
+            return;
+        }
+        newFile.close();
+    }
+    else
+    {
+        std::cout << "File " << filename << " already exists." << std::endl;
+    }
+}
+
 void loadScoresFromFile(ScoreEntry scores[], int &count, const std::string &filename = "scores.txt")
 {
     std::ifstream file(filename);
     if (!file)
     {
-        std::cerr << "Error: Could not open file " << filename << " for reading!" << std::endl;
-        count = 0; // No scores loaded
+        std::cerr << "File not found. Creating a new file: " << filename << std::endl;
+        std::ofstream newFile(filename); // Create the file
+        if (!newFile)
+        {
+            std::cerr << "Error: Could not create file " << filename << "!" << std::endl;
+            count = 0;
+            return;
+        }
+        newFile.close();
+        count = 0;
         return;
     }
 
@@ -244,6 +274,12 @@ void updateScoreboard(ScoreEntry scores[], int &count, int newScore, int newTime
     // Check if the new score qualifies for the top 5
     if (count < 5 || newScore > scores[count - 1].score)
     {
+        // Check if the new score is the highest score
+        if (count == 0 || newScore > scores[0].score) // If no scores exist or newScore is higher
+        {
+            New_highscore = true; // Update the high_score flag
+        }
+
         if (count < 5)
         {
             count++;
@@ -252,14 +288,65 @@ void updateScoreboard(ScoreEntry scores[], int &count, int newScore, int newTime
         int i = count - 1;
         while (i > 0 && scores[i - 1].score < newScore)
         {
-            scores[i] = scores[i - 1]; // Shift scores down
+            scores[i] = scores[i - 1];
             i--;
         }
 
-        // Insert the new score
         scores[i].score = newScore;
         scores[i].timeTaken = newTime;
     }
+    else
+    {
+        New_highscore = false; // No new high score
+    }
+}
+
+void saveScoresToFile(ScoreEntry scores[], int count, const std::string &filename = "scores.txt")
+{
+    std::ofstream file(filename);
+    if (!file)
+    {
+        std::cerr << "Error: Could not open file " << filename << " for writing!" << std::endl;
+        return;
+    }
+
+    // Write only the top 5 scores to the file
+    for (int i = 0; i < std::min(count, 5); i++)
+    {
+        file << scores[i].score << " " << scores[i].timeTaken << std::endl;
+    }
+
+    file.close();
+}
+
+void handleGameOver()
+{
+
+    ScoreEntry scores[5];
+    int count = 0;
+
+    loadScoresFromFile(scores, count);
+
+    int newScore;
+    if (_1p_points > _2p_points)
+    {
+        newScore = _1p_points;
+    }
+    else if (_2p_points > _1p_points)
+    {
+        newScore = _2p_points;
+    }
+    else
+    {
+        newScore = _1p_points;
+    }
+
+    int newTime = static_cast<int>(playElapsedTime);
+    updateScoreboard(scores, count, newScore, newTime);
+
+    saveScoresToFile(scores, count);
+
+    std::cout << "Scoreboard updated!" << std::endl;
 }
 
 void drop(int y, int x)
@@ -283,55 +370,6 @@ void construct_boundry()
         for (int j = 0; j < N; j++)
             if (i == 0 || j == 0 || i == M - 1 || j == N - 1)
                 grid[i][j] = 1;
-}
-
-bool floodFillAndCheck(int i, int j, int playerTrail)
-{
-    // Check boundaries to avoid out-of-bounds access
-    if (i < 0 || i >= M || j < 0 || j >= N)
-        return false;
-
-    // If the cell is already part of the player's trail or visited, return true
-    if (grid[i][j] == playerTrail || grid[i][j] == -1)
-        return true;
-
-    // If the cell is empty and on the boundary, it's not surrounded
-    if (grid[i][j] == 0 && (i == 0 || i == M - 1 || j == 0 || j == N - 1))
-        return false;
-
-    // If the cell is not empty, return true
-    if (grid[i][j] != 0)
-        return true;
-
-    // Mark the cell as visited
-    grid[i][j] = -1;
-
-    // Recursively check all neighbors
-    bool top = floodFillAndCheck(i - 1, j, playerTrail);
-    bool bottom = floodFillAndCheck(i + 1, j, playerTrail);
-    bool left = floodFillAndCheck(i, j - 1, playerTrail);
-    bool right = floodFillAndCheck(i, j + 1, playerTrail);
-
-    // If any neighbor is not surrounded, the area is not surrounded
-    return top && bottom && left && right;
-}
-
-bool isSurroundedByTrail(int i, int j, int playerTrail)
-{
-    // Perform flood-fill and check if the area is surrounded
-    bool isSurrounded = floodFillAndCheck(i, j, playerTrail);
-
-    // Restore the grid (convert -1 back to 0)
-    for (int x = 0; x < M; x++)
-    {
-        for (int y = 0; y < N; y++)
-        {
-            if (grid[x][y] == -1)
-                grid[x][y] = 0;
-        }
-    }
-
-    return isSurrounded;
 }
 
 void dullSprite(sf::Sprite &sprite)
@@ -407,7 +445,6 @@ void floodFill(int i, int j, int playerTrail)
         return;
 
     // Mark the cell as part of the player's trail
-    std::cout << "called" << std::endl;
     grid[i][j] = playerTrail;
 
     // Recursively flood-fill all neighbors (4 sides)
@@ -423,7 +460,6 @@ void processFloodFill(int playerTrail)
     {
         for (int j = 0; j < N; j++)
         {
-            // Check if the current cell belongs to the player's trail
             if (grid[i][j] == playerTrail)
             {
                 // Call floodFill for all four sides
@@ -435,7 +471,7 @@ void processFloodFill(int playerTrail)
                     floodFill(i, j - 1, playerTrail); // Left
                 if (j < N - 1)
                     floodFill(i, j + 1, playerTrail); // Right
-                return;                               // Exit after processing the first valid cell
+                                                      // Exit after processing the first valid cell
             }
         }
     }
@@ -443,6 +479,7 @@ void processFloodFill(int playerTrail)
 
 int main()
 {
+    ensureScoreFileExists("scores.txt");
     srand(time(0));
 
     sf::RenderWindow window(sf::VideoMode(N * ts, M * ts), "Xonix Game!");
@@ -518,7 +555,7 @@ int main()
     mode_button_text.setString("Modes");             // Set the text
     mode_button_text.setCharacterSize(50);           // Set the text size
     mode_button_text.setFillColor(sf::Color::White); // Set the text color
-    mode_button_text.setPosition(50, 390);           // Set the position
+    mode_button_text.setPosition(50, 250);           // Set the position
     mode_button_text.setStyle(sf::Text::Bold);
 
     sf::Text stop_button_text;
@@ -526,7 +563,7 @@ int main()
     stop_button_text.setString("Stop");              // Set the text
     stop_button_text.setCharacterSize(50);           // Set the text size
     stop_button_text.setFillColor(sf::Color::White); // Set the text color
-    stop_button_text.setPosition(50, 500);           // Set the position
+    stop_button_text.setPosition(50, 350);           // Set the position
     stop_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Texture _1p_buton_texture;
@@ -546,7 +583,7 @@ int main()
     easy_button_text.setString("Easy");              // Set the text
     easy_button_text.setCharacterSize(50);           // Set the text size
     easy_button_text.setFillColor(sf::Color::White); // Set the text color
-    easy_button_text.setPosition(350, 150);          // Set the position
+    easy_button_text.setPosition(430, 150);          // Set the position
     easy_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Text medium_button_text;
@@ -554,7 +591,7 @@ int main()
     medium_button_text.setString("Medium");            // Set the text
     medium_button_text.setCharacterSize(50);           // Set the text size
     medium_button_text.setFillColor(sf::Color::White); // Set the text color
-    medium_button_text.setPosition(350, 250);          // Set the position
+    medium_button_text.setPosition(400, 250);          // Set the position
     medium_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Text hard_button_text;
@@ -562,7 +599,7 @@ int main()
     hard_button_text.setString("Hard");              // Set the text
     hard_button_text.setCharacterSize(50);           // Set the text size
     hard_button_text.setFillColor(sf::Color::White); // Set the text color
-    hard_button_text.setPosition(350, 350);          // Set the position
+    hard_button_text.setPosition(430, 350);          // Set the position
     hard_button_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Texture ContinuousMode;
@@ -576,7 +613,7 @@ int main()
     back_button_mode_text.setString("Back");              // Set the text
     back_button_mode_text.setCharacterSize(50);           // Set the text size
     back_button_mode_text.setFillColor(sf::Color::White); // Set the text color
-    back_button_mode_text.setPosition(350, 450);          // Set the position
+    back_button_mode_text.setPosition(430, 450);          // Set the position
     back_button_mode_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Text back_button_score_text;
@@ -712,7 +749,7 @@ int main()
     gameover_Menu_resume_text.setString("Resume");            // Set the text
     gameover_Menu_resume_text.setCharacterSize(50);           // Set the text size
     gameover_Menu_resume_text.setFillColor(sf::Color::White); // Set the text color
-    gameover_Menu_resume_text.setPosition(55, 200);           // Set the position
+    gameover_Menu_resume_text.setPosition(55, 170);           // Set the position
     gameover_Menu_resume_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::Text gameover_menu_stop_text;
@@ -720,15 +757,55 @@ int main()
     gameover_menu_stop_text.setString("Stop");              // Set the text
     gameover_menu_stop_text.setCharacterSize(50);           // Set the text size
     gameover_menu_stop_text.setFillColor(sf::Color::White); // Set the text color
-    gameover_menu_stop_text.setPosition(50, 450);           // Set the position
+    gameover_menu_stop_text.setPosition(50, 420);           // Set the position
     gameover_menu_stop_text.setStyle(sf::Text::Bold);       // Make the text bold
+
+    sf::Text score_show_gameover_menu;
+    score_show_gameover_menu.setFont(font);                  // Set the font
+    score_show_gameover_menu.setString("Score: 0");          // Set the text
+    score_show_gameover_menu.setCharacterSize(50);           // Set the text size
+    score_show_gameover_menu.setFillColor(sf::Color::White); // Set the text color
+    score_show_gameover_menu.setPosition(600, 170);          // Set the position
+    score_show_gameover_menu.setStyle(sf::Text::Bold);       // Make the text bold
+
+    sf::Text score_show_gameover_menu_1p;
+    score_show_gameover_menu_1p.setFont(font);                  // Set the font
+    score_show_gameover_menu_1p.setString("p1 Score: 0");       // Set the text
+    score_show_gameover_menu_1p.setCharacterSize(50);           // Set the text size
+    score_show_gameover_menu_1p.setFillColor(sf::Color::White); // Set the text color
+    score_show_gameover_menu_1p.setPosition(550, 170);          // Set the position
+    score_show_gameover_menu_1p.setStyle(sf::Text::Bold);       // Make the text bold
+
+    sf::Text score_show_gameover_menu_2p;
+    score_show_gameover_menu_2p.setFont(font);                  // Set the font
+    score_show_gameover_menu_2p.setString("P2 Score: 0");       // Set the text
+    score_show_gameover_menu_2p.setCharacterSize(50);           // Set the text size
+    score_show_gameover_menu_2p.setFillColor(sf::Color::White); // Set the text color
+    score_show_gameover_menu_2p.setPosition(550, 250);          // Set the position
+    score_show_gameover_menu_2p.setStyle(sf::Text::Bold);       // Make the text bold
+
+    sf::Text who_wins_text;
+    who_wins_text.setFont(font);                  // Set the font
+    who_wins_text.setString("Still Playing...");  // Set the text
+    who_wins_text.setCharacterSize(50);           // Set the text size
+    who_wins_text.setFillColor(sf::Color::White); // Set the text color
+    who_wins_text.setPosition(550, 110);          // Set the position
+    who_wins_text.setStyle(sf::Text::Bold);       // Make the text bold
+
+    sf::Text New_highscore_text;
+    New_highscore_text.setFont(font);                // Set the font
+    New_highscore_text.setString("New Highscore!");  // Set the text
+    New_highscore_text.setCharacterSize(50);         // Set the text size
+    New_highscore_text.setFillColor(sf::Color::Red); // Set the text color
+    New_highscore_text.setPosition(600, 250);        // Set the position
+    New_highscore_text.setStyle(sf::Text::Bold);     // Make the text bold
 
     sf::Text main_menu_text;
     main_menu_text.setFont(font);                  // Set the font
     main_menu_text.setString("Main Menu");         // Set the text
     main_menu_text.setCharacterSize(50);           // Set the text size
     main_menu_text.setFillColor(sf::Color::White); // Set the text color
-    main_menu_text.setPosition(30, 300);           // Set the position
+    main_menu_text.setPosition(50, 300);           // Set the position
     main_menu_text.setStyle(sf::Text::Bold);       // Make the text bold
 
     sf::SoundBuffer buffer_movement;
@@ -870,13 +947,16 @@ int main()
                     {
                         button_sound.play();
 
+                        // Reset timers
                         continuousModeTimer = 0;
                         enemySpeed_timer = 0;
                         enemy_movement_timer = 0;
 
+                        // Reset scores
                         _1p_points = 0;
                         _2p_points = 0;
 
+                        // Reset game states
                         isPaused = false;
                         disablePlayer2Controls = false;
                         disablePlayer1Controls = false;
@@ -884,11 +964,27 @@ int main()
                         p1_dead = false;
                         p2_dead = false;
 
+                        // Reset elapsed time
                         playElapsedTime = 0;
+                        elapsedTime = 0;
+
+                        // Reset power-ups
+                        power_up_1p = false;
+                        power_up_2p = false;
+
+                        // Reset reward counters
+                        reward_counter_1p = 1;
+                        reward_counter_2p = 1;
+
+                        // Reset movement counters
+                        movementCounter_1p = 0;
+                        movementCounter_2p = 0;
+
+                        // Restart the play mode clock
                         playModeClock.restart();
+                        playModeClock_clockRunning = false;
 
-                        Game = true;
-
+                        // Reset the grid
                         for (int i = 1; i < M - 1; i++)
                         {
                             for (int j = 1; j < N - 1; j++)
@@ -897,43 +993,48 @@ int main()
                             }
                         }
 
+                        // Reset enemies
                         for (int i = 0; i < enemyCount; i++)
                         {
                             x = y = 300;
                             a[i].dx = 4 - rand() % 11;
                             a[i].dy = 4 - rand() % 11;
+                            a[i].movement = LINEAR; // Reset enemy movement type to default
                         }
 
+                        // Reset player positions
                         x = 0, y = 0, dx = 0, dy = 0;
                         x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
 
-                        // bool streak;
-
-                        elapsedTime = 0; // Elapsed time for the game
+                        // Reset game state
+                        Game = true;
                         gameState = PLAY;
                     }
                     else if (gameover_menu_stop_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
-                        window.close();
+                        window.close(); // Close the game
                     }
                     else if (gameover_Menu_resume_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
                         Game = true;
-                        gameState = PLAY;
+                        gameState = PLAY; // Resume the game
                     }
                     else if (main_menu_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
                     {
                         button_sound.play();
 
+                        // Reset timers
                         continuousModeTimer = 0;
                         enemySpeed_timer = 0;
                         enemy_movement_timer = 0;
 
+                        // Reset scores
                         _1p_points = 0;
                         _2p_points = 0;
 
+                        // Reset game states
                         isPaused = false;
                         disablePlayer2Controls = false;
                         disablePlayer1Controls = false;
@@ -941,34 +1042,49 @@ int main()
                         p1_dead = false;
                         p2_dead = false;
 
-                        Game = true;
-
+                        // Reset elapsed time
                         playElapsedTime = 0;
+                        elapsedTime = 0;
 
-                        // playModeClock.restart();
+                        // Reset power-ups
+                        power_up_1p = false;
+                        power_up_2p = false;
+
+                        // Reset reward counters
+                        reward_counter_1p = 1;
+                        reward_counter_2p = 1;
+
+                        // Reset movement counters
+                        movementCounter_1p = 0;
+                        movementCounter_2p = 0;
+
+                        // Stop the play mode clock
                         playModeClock_clockRunning = false;
 
+                        // Reset the grid
                         for (int i = 1; i < M - 1; i++)
                         {
                             for (int j = 1; j < N - 1; j++)
                             {
-                                grid[i][j] = 0;
+                                grid[i][j] = 0; // Clear the grid
                             }
                         }
 
+                        // Reset enemies
                         for (int i = 0; i < enemyCount; i++)
                         {
                             x = y = 300;
                             a[i].dx = 4 - rand() % 11;
                             a[i].dy = 4 - rand() % 11;
+                            a[i].movement = LINEAR; // Reset enemy movement type to default
                         }
 
+                        // Reset player positions
                         x = 0, y = 0, dx = 0, dy = 0;
                         x_2 = N - 1, y_2 = 0, dx_2 = 0, dy_2 = 0;
 
-                        // bool streak;
-
-                        elapsedTime = 0; // Elapsed time for the game
+                        // Reset game state
+                        Game = true;
                         gameState = MENU;
                     }
                 }
@@ -1069,6 +1185,56 @@ int main()
             window.draw(gameover_menu_stop_text);
             window.draw(gameover_Menu_resume_text);
             window.draw(main_menu_text);
+
+            if (gameMode == SINGLE_PLAYER)
+            {
+                score_show_gameover_menu.setString("Score: " + std::to_string(_1p_points));
+                window.draw(score_show_gameover_menu);
+
+                New_highscore_text.setPosition(600, 250); // Set the position
+
+                if (New_highscore)
+                {
+                    window.draw(New_highscore_text);
+                }
+            }
+            else if (gameMode == TWO_PLAYER)
+            {
+
+                // help
+                score_show_gameover_menu_1p.setString("p1 Score: " + std::to_string(_1p_points));
+
+                score_show_gameover_menu_2p.setString("p2 Score: " + std::to_string(_2p_points));
+
+                if (p1_dead && p2_dead && _2p_points > _1p_points)
+                {
+                    who_wins_text.setString("Player 2 wins!");
+                }
+                else if (p1_dead && p2_dead && _1p_points > _2p_points)
+                {
+                    who_wins_text.setString("Player 1 wins!");
+                }
+                else if (p2_dead && p1_dead && _2p_points == _1p_points)
+                {
+                    who_wins_text.setString("It's a tie!");
+                }
+                else if (!p2_dead && !p1_dead)
+                {
+                    who_wins_text.setString("Still Playing...");
+                }
+
+                window.draw(score_show_gameover_menu_1p);
+                window.draw(score_show_gameover_menu_2p);
+                window.draw(who_wins_text);
+
+                New_highscore_text.setPosition(550, 320); // Set the position
+
+                if (New_highscore)
+                {
+                    window.draw(New_highscore_text);
+                }
+            }
+
             window.display();
             continue;
         }
@@ -1283,7 +1449,6 @@ int main()
 
                     tiles_covered_1p++;
                     movement_sound.play();
-                    std::cout << tiles_covered_1p << std::endl;
                     reward_p1();
                 }
 
@@ -1374,7 +1539,6 @@ int main()
 
                     if (grid[y_2][x_2] == 0) // Only mark empty cells
                     {
-                        std::cout << "Player 2's movement: " << x_2 << ", " << y_2 << std::endl;
                         grid[y_2][x_2] = 3; // Mark Player 2's trail
                     }
                 }
@@ -1478,7 +1642,6 @@ int main()
                             tiles_covered_2p++;
                         }
 
-                tiles_covered_2p = std::abs(movementCounter_2p - tiles_covered_2p);
                 movementCounter_2p = 0;
                 reward_p2();
             }
@@ -1578,8 +1741,15 @@ int main()
 
             if (!Game)
             {
+                if (gameState == PLAY)
+                {
+                    handleGameOver();
+                }
+
                 gameover_sound.play();
                 window.draw(sGameover);
+
+                gameState = GAMEOVER_MENU;
             }
 
             point_1p.setString("POINTS: " + std::to_string(_1p_points));

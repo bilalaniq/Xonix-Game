@@ -10,20 +10,19 @@
 #include <fstream>
 #include <cmath>
 
-// Define game states
 enum GameState
 {
     MENU,
     PLAY,
     GAMEOVER_MENU,
-    MODES, // Modes menu
+    MODES,
     highscore
 };
 
 enum GameMode
 {
-    SINGLE_PLAYER, // 1P mode
-    TWO_PLAYER     // 2P mode
+    SINGLE_PLAYER,
+    TWO_PLAYER
 };
 
 enum difficulty
@@ -78,7 +77,8 @@ bool p2_dead = false;
 
 bool New_highscore = false;
 
-// bool streak;
+int power_up_inventory_1p = 0;
+int power_up_inventory_2p = 0;
 
 int elapsedTime = 0;
 float playElapsedTime = 0;
@@ -95,7 +95,7 @@ size_t score_2p = 0;
 struct Enemy
 {
     int x, y, dx, dy;
-    movement_type movement = LINEAR; // Default movement type
+    movement_type movement = LINEAR;
 
     Enemy()
     {
@@ -104,24 +104,22 @@ struct Enemy
         dy = 4 - rand() % 11;
     }
 
-    // Default movement type
-
     void move()
     {
-        if (isPaused) // If the game is paused, do not update the enemy's position
+        if (isPaused)
             return;
 
         if (movement == LINEAR)
         {
             x += dx;
 
-            if (grid[y / ts][x / ts] == 1) // If the enemy hits the wall
+            if (grid[y / ts][x / ts] == 1)
             {
                 dx = -dx;
                 x += dx;
             }
             y += dy;
-            if (grid[y / ts][x / ts] == 1) // If the enemy hits the wall
+            if (grid[y / ts][x / ts] == 1)
             {
                 dy = -dy;
                 y += dy;
@@ -141,7 +139,7 @@ struct Enemy
     {
         static int frameCount = 0;
         static bool goingRight = true;
-        static int verticalDir = 1; // 1 for down, -1 for up
+        static int verticalDir = 1;
 
         const int zigzagInterval = 50;
         frameCount++;
@@ -156,34 +154,30 @@ struct Enemy
 
         if (goingRight)
         {
-            move_dx = 5; // Move right
+            move_dx = 5;
         }
         else
         {
-            move_dx = -5; // Move left
+            move_dx = -5;
         }
 
         int move_dy = verticalDir * 2;
 
-        // Add jitter for randomness
-        move_dx += rand() % 3 - 1; // Randomly adjust the x movement
-        move_dy += rand() % 3 - 1; // Randomly adjust the y movement
+        move_dx += rand() % 3 - 1;
+        move_dy += rand() % 3 - 1;
 
         int new_x = x + move_dx;
         int new_y = y + move_dy;
 
-        // Check if the new position is within bounds
         if (new_x >= 0 && new_x < N * ts && new_y >= 0 && new_y < M * ts)
         {
-            // Move the enemy only if within bounds
-            if (grid[new_y / ts][new_x / ts] != 1) // correct this for the 2p
+            if (grid[new_y / ts][new_x / ts] != 1)
             {
                 x = new_x;
                 y = new_y;
             }
             else
             {
-                // If it hits a wall, reverse direction
                 goingRight = !goingRight;
                 verticalDir *= -1;
                 frameCount = 0;
@@ -191,7 +185,6 @@ struct Enemy
         }
         else
         {
-            // If out of bounds, reverse direction but don't move
             goingRight = !goingRight;
             verticalDir *= -1;
         }
@@ -203,12 +196,10 @@ struct Enemy
         angle += 0.05f;
 
         int radius = 60;
-        int cx = 300, cy = 300; // Circle center
+        int cx = 300, cy = 300;
 
         x = cx + static_cast<int>(radius * cos(angle)); //  x = h + r cos(t)
         y = cy + static_cast<int>(radius * sin(angle)); //  y = k + r sin(t)
-
-        // Don't reverse dx/dy here — position is directly set
     }
 };
 
@@ -221,7 +212,7 @@ struct ScoreEntry
 void ensureScoreFileExists(const std::string &filename = "scores.txt")
 {
     std::ifstream file(filename);
-    if (!file) // If the file does not exist
+    if (!file)
     {
         std::cerr << "File not found. Creating a new file: " << filename << std::endl;
         std::ofstream newFile(filename); // Create the file
@@ -374,7 +365,7 @@ void construct_boundry()
 
 void dullSprite(sf::Sprite &sprite)
 {
-    sprite.setColor(sf::Color(128, 128, 128, 255));
+    sprite.setColor(sf::Color(128, 128, 128, 255)); // Dull the sprite by changing its color to gray
 }
 
 void restoreSprite(sf::Sprite &sprite)
@@ -384,54 +375,66 @@ void restoreSprite(sf::Sprite &sprite)
 
 void reward_p1()
 {
-
     if (tiles_covered_1p >= 10 && reward_counter_1p <= 3)
     {
         _1p_points += tiles_covered_1p * 2;
         reward_counter_1p++;
         std::cout << "Reward 1: " << reward_counter_1p << " (×2 points)" << std::endl;
-        tiles_covered_1p = 0;
     }
     else if (tiles_covered_1p >= 5 && reward_counter_1p > 3 && reward_counter_1p <= 5)
     {
         _1p_points += tiles_covered_1p * 2;
         reward_counter_1p++;
         std::cout << "Reward Counter2: " << reward_counter_1p << " (×2 points, reduced threshold)" << std::endl;
-        tiles_covered_1p = 0;
     }
     else if (tiles_covered_1p >= 5 && reward_counter_1p > 5)
     {
         _1p_points += tiles_covered_1p * 4;
         reward_counter_1p++;
         std::cout << "Reward Counter3: " << reward_counter_1p << " (×4 points)" << std::endl;
-        tiles_covered_1p = 0;
     }
+
+    static int nextPowerUpThreshold = 50;
+    if (_1p_points >= nextPowerUpThreshold)
+    {
+        power_up_inventory_1p++;
+        std::cout << "Player 1 earned a power-up! Total: " << power_up_inventory_1p << std::endl;
+        nextPowerUpThreshold += 30;
+    }
+
+    tiles_covered_1p = 0;
 }
 
 void reward_p2()
 {
-
     if (tiles_covered_2p >= 10 && reward_counter_2p <= 3)
     {
         _2p_points += tiles_covered_2p * 2;
         reward_counter_2p++;
         std::cout << "Reward 1 (P2): " << reward_counter_2p << " (×2 points)" << std::endl;
-        tiles_covered_2p = 0;
     }
     else if (tiles_covered_2p >= 5 && reward_counter_2p > 3 && reward_counter_2p <= 5)
     {
         _2p_points += tiles_covered_2p * 2;
         reward_counter_2p++;
         std::cout << "Reward Counter2 (P2): " << reward_counter_2p << " (×2 points, reduced threshold)" << std::endl;
-        tiles_covered_2p = 0;
     }
     else if (tiles_covered_2p >= 5 && reward_counter_2p > 5)
     {
         _2p_points += tiles_covered_2p * 4;
         reward_counter_2p++;
         std::cout << "Reward Counter3 (P2): " << reward_counter_2p << " (×4 points)" << std::endl;
-        tiles_covered_2p = 0;
     }
+
+    static int nextPowerUpThreshold = 50;
+    if (_1p_points >= nextPowerUpThreshold)
+    {
+        power_up_inventory_1p++;
+        std::cout << "Player 1 earned a power-up! Total: " << power_up_inventory_1p << std::endl;
+        nextPowerUpThreshold += 30;
+    }
+
+    tiles_covered_2p = 0;
 }
 
 void floodFill(int i, int j, int playerTrail)
@@ -462,16 +465,14 @@ void processFloodFill(int playerTrail)
         {
             if (grid[i][j] == playerTrail)
             {
-                // Call floodFill for all four sides
                 if (i > 0)
-                    floodFill(i - 1, j, playerTrail); // Top
+                    floodFill(i - 1, j, playerTrail);
                 if (i < M - 1)
-                    floodFill(i + 1, j, playerTrail); // Bottom
+                    floodFill(i + 1, j, playerTrail);
                 if (j > 0)
-                    floodFill(i, j - 1, playerTrail); // Left
+                    floodFill(i, j - 1, playerTrail);
                 if (j < N - 1)
-                    floodFill(i, j + 1, playerTrail); // Right
-                                                      // Exit after processing the first valid cell
+                    floodFill(i, j + 1, playerTrail);
             }
         }
     }
@@ -513,7 +514,7 @@ int main()
     float timer = 0, delay = 0.07;
     sf::Clock clock;
 
-    construct_boundry(); // for making the boundry constructed
+    construct_boundry(); // for making the boundry constructed by 1
 
     sf::Font font;
     if (!font.loadFromFile("images/Arial.ttf"))
@@ -532,9 +533,8 @@ int main()
     sf::Sprite menu_background(background_texture);
 
     menu_background.setScale(
-        static_cast<float>(N * ts) / background_texture.getSize().x, // Scale to fit the window width
-        static_cast<float>(M * ts) / background_texture.getSize().y  // Scale to fit the window height
-    );
+        static_cast<float>(N * ts) / background_texture.getSize().x,
+        static_cast<float>(M * ts) / background_texture.getSize().y);
 
     sf::Texture menu_texture;
     menu_texture.loadFromFile("images/menu_xonix_pic.png");
@@ -551,20 +551,20 @@ int main()
     start_button_text.setStyle(sf::Text::Bold);
 
     sf::Text mode_button_text;
-    mode_button_text.setFont(font);                  // Set the font
-    mode_button_text.setString("Modes");             // Set the text
-    mode_button_text.setCharacterSize(50);           // Set the text size
-    mode_button_text.setFillColor(sf::Color::White); // Set the text color
-    mode_button_text.setPosition(50, 250);           // Set the position
+    mode_button_text.setFont(font);
+    mode_button_text.setString("Modes");
+    mode_button_text.setCharacterSize(50);
+    mode_button_text.setFillColor(sf::Color::White);
+    mode_button_text.setPosition(50, 250);
     mode_button_text.setStyle(sf::Text::Bold);
 
     sf::Text stop_button_text;
-    stop_button_text.setFont(font);                  // Set the font
-    stop_button_text.setString("Stop");              // Set the text
-    stop_button_text.setCharacterSize(50);           // Set the text size
-    stop_button_text.setFillColor(sf::Color::White); // Set the text color
-    stop_button_text.setPosition(50, 350);           // Set the position
-    stop_button_text.setStyle(sf::Text::Bold);       // Make the text bold
+    stop_button_text.setFont(font);
+    stop_button_text.setString("Stop");
+    stop_button_text.setCharacterSize(50);
+    stop_button_text.setFillColor(sf::Color::White);
+    stop_button_text.setPosition(50, 350);
+    stop_button_text.setStyle(sf::Text::Bold);
 
     sf::Texture _1p_buton_texture;
     _1p_buton_texture.loadFromFile("images/1p.png");
@@ -579,28 +579,28 @@ int main()
     _2p_button.setScale(0.5, 0.5f);
 
     sf::Text easy_button_text;
-    easy_button_text.setFont(font);                  // Set the font
-    easy_button_text.setString("Easy");              // Set the text
-    easy_button_text.setCharacterSize(50);           // Set the text size
-    easy_button_text.setFillColor(sf::Color::White); // Set the text color
-    easy_button_text.setPosition(430, 150);          // Set the position
-    easy_button_text.setStyle(sf::Text::Bold);       // Make the text bold
+    easy_button_text.setFont(font);
+    easy_button_text.setString("Easy");
+    easy_button_text.setCharacterSize(50);
+    easy_button_text.setFillColor(sf::Color::White);
+    easy_button_text.setPosition(430, 150);
+    easy_button_text.setStyle(sf::Text::Bold);
 
     sf::Text medium_button_text;
-    medium_button_text.setFont(font);                  // Set the font
-    medium_button_text.setString("Medium");            // Set the text
-    medium_button_text.setCharacterSize(50);           // Set the text size
-    medium_button_text.setFillColor(sf::Color::White); // Set the text color
-    medium_button_text.setPosition(400, 250);          // Set the position
-    medium_button_text.setStyle(sf::Text::Bold);       // Make the text bold
+    medium_button_text.setFont(font);
+    medium_button_text.setString("Medium");
+    medium_button_text.setCharacterSize(50);
+    medium_button_text.setFillColor(sf::Color::White);
+    medium_button_text.setPosition(400, 250);
+    medium_button_text.setStyle(sf::Text::Bold);
 
     sf::Text hard_button_text;
-    hard_button_text.setFont(font);                  // Set the font
-    hard_button_text.setString("Hard");              // Set the text
-    hard_button_text.setCharacterSize(50);           // Set the text size
-    hard_button_text.setFillColor(sf::Color::White); // Set the text color
-    hard_button_text.setPosition(430, 350);          // Set the position
-    hard_button_text.setStyle(sf::Text::Bold);       // Make the text bold
+    hard_button_text.setFont(font);
+    hard_button_text.setString("Hard");
+    hard_button_text.setCharacterSize(50);
+    hard_button_text.setFillColor(sf::Color::White);
+    hard_button_text.setPosition(430, 350);
+    hard_button_text.setStyle(sf::Text::Bold);
 
     sf::Texture ContinuousMode;
     ContinuousMode.loadFromFile("images/ContinuousMode.png");
@@ -609,59 +609,58 @@ int main()
     continuous_button.setScale(1.7, 1.7f);
 
     sf::Text back_button_mode_text;
-    back_button_mode_text.setFont(font);                  // Set the font
-    back_button_mode_text.setString("Back");              // Set the text
-    back_button_mode_text.setCharacterSize(50);           // Set the text size
-    back_button_mode_text.setFillColor(sf::Color::White); // Set the text color
-    back_button_mode_text.setPosition(430, 450);          // Set the position
-    back_button_mode_text.setStyle(sf::Text::Bold);       // Make the text bold
+    back_button_mode_text.setFont(font);
+    back_button_mode_text.setString("Back");
+    back_button_mode_text.setCharacterSize(50);
+    back_button_mode_text.setFillColor(sf::Color::White);
+    back_button_mode_text.setPosition(430, 450);
+    back_button_mode_text.setStyle(sf::Text::Bold);
 
     sf::Text back_button_score_text;
-    back_button_score_text.setFont(font);                  // Set the font
-    back_button_score_text.setString("Back");              // Set the text
-    back_button_score_text.setCharacterSize(50);           // Set the text size
-    back_button_score_text.setFillColor(sf::Color::White); // Set the text color
-    back_button_score_text.setPosition(350, 500);          // Set the position
-    back_button_score_text.setStyle(sf::Text::Bold);       // Make the text bold
+    back_button_score_text.setFont(font);
+    back_button_score_text.setString("Back");
+    back_button_score_text.setCharacterSize(50);
+    back_button_score_text.setFillColor(sf::Color::White);
+    back_button_score_text.setPosition(350, 500);
+    back_button_score_text.setStyle(sf::Text::Bold);
 
     sf::Text point_1p;
-    point_1p.setFont(font);                      // Set the font
-    point_1p.setCharacterSize(25);               // Set the text size
-    point_1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
-    point_1p.setPosition(10, 30);                // Set the position on the screen
+    point_1p.setFont(font);
+    point_1p.setCharacterSize(25);
+    point_1p.setFillColor(sf::Color(255, 0, 0));
+    point_1p.setPosition(10, 30);
     point_1p.setString("0");
     point_1p.setStyle(sf::Text::Bold);
 
     sf::Text score_x1p;
-    score_x1p.setFont(font);                      // Set the font
-    score_x1p.setCharacterSize(25);               // Set the text size
-    score_x1p.setFillColor(sf::Color(255, 0, 0)); // Set the text color
+    score_x1p.setFont(font);
+    score_x1p.setCharacterSize(25);
+    score_x1p.setFillColor(sf::Color(255, 0, 0));
     score_x1p.setPosition(10, 50);
     score_x1p.setString("0");
     score_x1p.setStyle(sf::Text::Bold);
 
     sf::Text score_x2p;
-    score_x2p.setFont(font);                        // Set the font
-    score_x2p.setCharacterSize(25);                 // Set the text size
-    score_x2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color (orange for Player 2)
-    score_x2p.setPosition(815, 50);                 // Set the position for Player 2
-    score_x2p.setString("0");                       // Initialize with "0"
-    score_x2p.setStyle(sf::Text::Bold);             // Make the text bold
+    score_x2p.setFont(font);
+    score_x2p.setCharacterSize(25);
+    score_x2p.setFillColor(sf::Color(255, 165, 0));
+    score_x2p.setPosition(815, 50);
+    score_x2p.setString("0");
+    score_x2p.setStyle(sf::Text::Bold);
 
     sf::Text point_2p;
-    point_2p.setFont(font);                        // Set the font
-    point_2p.setCharacterSize(25);                 // Set the text size
-    point_2p.setFillColor(sf::Color(255, 165, 0)); // Set the text color
-    point_2p.setPosition(815, 30);                 // Set the position on the screen
+    point_2p.setFont(font);
+    point_2p.setCharacterSize(25);
+    point_2p.setFillColor(sf::Color(255, 165, 0));
+    point_2p.setPosition(815, 30);
     point_2p.setString("0");
     point_2p.setStyle(sf::Text::Bold);
 
-    // Clock to track elapsed time for PLAY mode
     sf::Text playElapsedTimeText;
-    playElapsedTimeText.setFont(font);                  // Set the font
-    playElapsedTimeText.setCharacterSize(20);           // Set the text size
-    playElapsedTimeText.setFillColor(sf::Color::White); // Set the text color
-    playElapsedTimeText.setPosition(480, 10);           // Set the position on the screen
+    playElapsedTimeText.setFont(font);
+    playElapsedTimeText.setCharacterSize(20);
+    playElapsedTimeText.setFillColor(sf::Color::White);
+    playElapsedTimeText.setPosition(480, 10);
     playElapsedTimeText.setString("0");
 
     sf::SoundBuffer buffer_button;
@@ -737,76 +736,76 @@ int main()
     p2_terminated_sound.setPitch(1.0f);
 
     sf::Text gameover_Menu_restart_text;
-    gameover_Menu_restart_text.setFont(font);                  // Set the font
-    gameover_Menu_restart_text.setString("Restart");           // Set the text
-    gameover_Menu_restart_text.setCharacterSize(50);           // Set the text size
-    gameover_Menu_restart_text.setFillColor(sf::Color::White); // Set the text color
-    gameover_Menu_restart_text.setPosition(50, 60);            // Set the position
-    gameover_Menu_restart_text.setStyle(sf::Text::Bold);       // Make the text bold
+    gameover_Menu_restart_text.setFont(font);
+    gameover_Menu_restart_text.setString("Restart");
+    gameover_Menu_restart_text.setCharacterSize(50);
+    gameover_Menu_restart_text.setFillColor(sf::Color::White);
+    gameover_Menu_restart_text.setPosition(50, 60);
+    gameover_Menu_restart_text.setStyle(sf::Text::Bold);
 
     sf::Text gameover_Menu_resume_text;
-    gameover_Menu_resume_text.setFont(font);                  // Set the font
-    gameover_Menu_resume_text.setString("Resume");            // Set the text
-    gameover_Menu_resume_text.setCharacterSize(50);           // Set the text size
-    gameover_Menu_resume_text.setFillColor(sf::Color::White); // Set the text color
-    gameover_Menu_resume_text.setPosition(55, 170);           // Set the position
-    gameover_Menu_resume_text.setStyle(sf::Text::Bold);       // Make the text bold
+    gameover_Menu_resume_text.setFont(font);
+    gameover_Menu_resume_text.setString("Resume");
+    gameover_Menu_resume_text.setCharacterSize(50);
+    gameover_Menu_resume_text.setFillColor(sf::Color::White);
+    gameover_Menu_resume_text.setPosition(55, 170);
+    gameover_Menu_resume_text.setStyle(sf::Text::Bold);
 
     sf::Text gameover_menu_stop_text;
-    gameover_menu_stop_text.setFont(font);                  // Set the font
-    gameover_menu_stop_text.setString("Stop");              // Set the text
-    gameover_menu_stop_text.setCharacterSize(50);           // Set the text size
-    gameover_menu_stop_text.setFillColor(sf::Color::White); // Set the text color
-    gameover_menu_stop_text.setPosition(50, 420);           // Set the position
-    gameover_menu_stop_text.setStyle(sf::Text::Bold);       // Make the text bold
+    gameover_menu_stop_text.setFont(font);
+    gameover_menu_stop_text.setString("Stop");
+    gameover_menu_stop_text.setCharacterSize(50);
+    gameover_menu_stop_text.setFillColor(sf::Color::White);
+    gameover_menu_stop_text.setPosition(50, 420);
+    gameover_menu_stop_text.setStyle(sf::Text::Bold);
 
     sf::Text score_show_gameover_menu;
-    score_show_gameover_menu.setFont(font);                  // Set the font
-    score_show_gameover_menu.setString("Score: 0");          // Set the text
-    score_show_gameover_menu.setCharacterSize(50);           // Set the text size
-    score_show_gameover_menu.setFillColor(sf::Color::White); // Set the text color
-    score_show_gameover_menu.setPosition(600, 170);          // Set the position
-    score_show_gameover_menu.setStyle(sf::Text::Bold);       // Make the text bold
+    score_show_gameover_menu.setFont(font);
+    score_show_gameover_menu.setString("Score: 0");
+    score_show_gameover_menu.setCharacterSize(50);
+    score_show_gameover_menu.setFillColor(sf::Color::White);
+    score_show_gameover_menu.setPosition(600, 170);
+    score_show_gameover_menu.setStyle(sf::Text::Bold);
 
     sf::Text score_show_gameover_menu_1p;
-    score_show_gameover_menu_1p.setFont(font);                  // Set the font
-    score_show_gameover_menu_1p.setString("p1 Score: 0");       // Set the text
-    score_show_gameover_menu_1p.setCharacterSize(50);           // Set the text size
-    score_show_gameover_menu_1p.setFillColor(sf::Color::White); // Set the text color
-    score_show_gameover_menu_1p.setPosition(550, 170);          // Set the position
-    score_show_gameover_menu_1p.setStyle(sf::Text::Bold);       // Make the text bold
+    score_show_gameover_menu_1p.setFont(font);
+    score_show_gameover_menu_1p.setString("p1 Score: 0");
+    score_show_gameover_menu_1p.setCharacterSize(50);
+    score_show_gameover_menu_1p.setFillColor(sf::Color::White);
+    score_show_gameover_menu_1p.setPosition(550, 170);
+    score_show_gameover_menu_1p.setStyle(sf::Text::Bold);
 
     sf::Text score_show_gameover_menu_2p;
-    score_show_gameover_menu_2p.setFont(font);                  // Set the font
-    score_show_gameover_menu_2p.setString("P2 Score: 0");       // Set the text
-    score_show_gameover_menu_2p.setCharacterSize(50);           // Set the text size
-    score_show_gameover_menu_2p.setFillColor(sf::Color::White); // Set the text color
-    score_show_gameover_menu_2p.setPosition(550, 250);          // Set the position
-    score_show_gameover_menu_2p.setStyle(sf::Text::Bold);       // Make the text bold
+    score_show_gameover_menu_2p.setFont(font);
+    score_show_gameover_menu_2p.setString("P2 Score: 0");
+    score_show_gameover_menu_2p.setCharacterSize(50);
+    score_show_gameover_menu_2p.setFillColor(sf::Color::White);
+    score_show_gameover_menu_2p.setPosition(550, 250);
+    score_show_gameover_menu_2p.setStyle(sf::Text::Bold);
 
     sf::Text who_wins_text;
-    who_wins_text.setFont(font);                  // Set the font
-    who_wins_text.setString("Still Playing...");  // Set the text
-    who_wins_text.setCharacterSize(50);           // Set the text size
-    who_wins_text.setFillColor(sf::Color::White); // Set the text color
-    who_wins_text.setPosition(550, 110);          // Set the position
-    who_wins_text.setStyle(sf::Text::Bold);       // Make the text bold
+    who_wins_text.setFont(font);
+    who_wins_text.setString("Still Playing...");
+    who_wins_text.setCharacterSize(50);
+    who_wins_text.setFillColor(sf::Color::White);
+    who_wins_text.setPosition(550, 110);
+    who_wins_text.setStyle(sf::Text::Bold);
 
     sf::Text New_highscore_text;
-    New_highscore_text.setFont(font);                // Set the font
-    New_highscore_text.setString("New Highscore!");  // Set the text
-    New_highscore_text.setCharacterSize(50);         // Set the text size
-    New_highscore_text.setFillColor(sf::Color::Red); // Set the text color
-    New_highscore_text.setPosition(600, 250);        // Set the position
-    New_highscore_text.setStyle(sf::Text::Bold);     // Make the text bold
+    New_highscore_text.setFont(font);
+    New_highscore_text.setString("New Highscore!");
+    New_highscore_text.setCharacterSize(50);
+    New_highscore_text.setFillColor(sf::Color::Red);
+    New_highscore_text.setPosition(600, 250);
+    New_highscore_text.setStyle(sf::Text::Bold);
 
     sf::Text main_menu_text;
-    main_menu_text.setFont(font);                  // Set the font
-    main_menu_text.setString("Main Menu");         // Set the text
-    main_menu_text.setCharacterSize(50);           // Set the text size
-    main_menu_text.setFillColor(sf::Color::White); // Set the text color
-    main_menu_text.setPosition(50, 300);           // Set the position
-    main_menu_text.setStyle(sf::Text::Bold);       // Make the text bold
+    main_menu_text.setFont(font);
+    main_menu_text.setString("Main Menu");
+    main_menu_text.setCharacterSize(50);
+    main_menu_text.setFillColor(sf::Color::White);
+    main_menu_text.setPosition(50, 300);
+    main_menu_text.setStyle(sf::Text::Bold);
 
     sf::SoundBuffer buffer_movement;
     if (!buffer_movement.loadFromFile("sounds/movement_effect.wav"))
@@ -980,6 +979,9 @@ int main()
                         movementCounter_1p = 0;
                         movementCounter_2p = 0;
 
+                        power_up_inventory_1p = 0;
+                        power_up_inventory_2p = 0;
+
                         // Restart the play mode clock
                         playModeClock.restart();
                         playModeClock_clockRunning = false;
@@ -1061,6 +1063,9 @@ int main()
                         // Stop the play mode clock
                         playModeClock_clockRunning = false;
 
+                        power_up_inventory_1p = 0;
+                        power_up_inventory_2p = 0;
+
                         // Reset the grid
                         for (int i = 1; i < M - 1; i++)
                         {
@@ -1097,8 +1102,6 @@ int main()
 
             const float hoverScale = 0.52f;
             const float normalScale = 0.5f;
-
-            // sf::Vector2f currentScale = mode_button.getScale();
 
             // Draw the menu elements
             window.clear(sf::Color::White);
@@ -1201,7 +1204,6 @@ int main()
             else if (gameMode == TWO_PLAYER)
             {
 
-                // help
                 score_show_gameover_menu_1p.setString("p1 Score: " + std::to_string(_1p_points));
 
                 score_show_gameover_menu_2p.setString("p2 Score: " + std::to_string(_2p_points));
@@ -1227,7 +1229,7 @@ int main()
                 window.draw(score_show_gameover_menu_2p);
                 window.draw(who_wins_text);
 
-                New_highscore_text.setPosition(550, 320); // Set the position
+                New_highscore_text.setPosition(550, 320);
 
                 if (New_highscore)
                 {
@@ -1241,8 +1243,6 @@ int main()
 
         if (gameState == PLAY)
         {
-
-            // window.clear();
 
             if (gameDifficulty == continuous)
             {
@@ -1280,12 +1280,11 @@ int main()
             };
 
             int temp_dx_2, temp_dy_2;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::RShift) && !isPaused && !disablePlayer1Controls && !p1_dead)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::RShift) && power_up_inventory_1p > 0 && !isPaused && !disablePlayer1Controls && !p1_dead)
             {
                 if (power_up_1p == false)
                 {
                     power_up_sound.play();
-                    // Set the scale of the power-up sprite
 
                     power_up_1p = true;
                     isPaused = true;
@@ -1317,6 +1316,7 @@ int main()
                     dy_2 = 0;
 
                     powerUpClock.restart(); // Start the timer
+                    power_up_inventory_1p--;
                 }
             }
 
@@ -1363,7 +1363,7 @@ int main()
                     dy_2 = 1;
                 };
                 int temp_dx, temp_dy;
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) && !isPaused && !disablePlayer2Controls && !p2_dead)
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) && power_up_inventory_2p > 0 && !isPaused && !disablePlayer2Controls && !p2_dead)
                 {
                     if (power_up_2p == false)
                     {
@@ -1399,6 +1399,7 @@ int main()
                         dy = 0;
 
                         powerUpClock.restart(); // Start the timer
+                        power_up_inventory_2p--;
                     }
                 }
 
@@ -1449,7 +1450,6 @@ int main()
 
                     tiles_covered_1p++;
                     movement_sound.play();
-                    reward_p1();
                 }
 
                 if (grid[y][x] == 2 || grid[y][x] == 3)
@@ -1511,8 +1511,6 @@ int main()
                         movementCounter_2p++;
                         tiles_covered_2p++;
                         movement_sound.play();
-                        std::cout << tiles_covered_2p << std::endl;
-                        reward_p2();
                     }
 
                     if (grid[y_2][x_2] == 3 || grid[y_2][x_2] == 2)

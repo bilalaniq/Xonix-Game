@@ -640,6 +640,16 @@ int main()
     score_x1p.setString("0");
     score_x1p.setStyle(sf::Text::Bold);
 
+
+    sf::Text movement_counter_1p_text;
+    movement_counter_1p_text.setFont(font);
+    movement_counter_1p_text.setCharacterSize(25);
+    movement_counter_1p_text.setFillColor(sf::Color(255, 0, 0));
+    movement_counter_1p_text.setPosition(10, 70);
+    movement_counter_1p_text.setString("0");
+    movement_counter_1p_text.setStyle(sf::Text::Bold);
+
+
     sf::Text score_x2p;
     score_x2p.setFont(font);
     score_x2p.setCharacterSize(25);
@@ -655,6 +665,16 @@ int main()
     point_2p.setPosition(815, 30);
     point_2p.setString("0");
     point_2p.setStyle(sf::Text::Bold);
+
+    sf::Text movement_counter_2p_text;
+    movement_counter_2p_text.setFont(font);
+    movement_counter_2p_text.setCharacterSize(25);
+    movement_counter_2p_text.setFillColor(sf::Color(255, 165, 0));
+    movement_counter_2p_text.setPosition(815, 70);
+    movement_counter_2p_text.setString("0");
+    movement_counter_2p_text.setStyle(sf::Text::Bold);
+
+
 
     sf::Text playElapsedTimeText;
     playElapsedTimeText.setFont(font);
@@ -1752,16 +1772,20 @@ int main()
 
             point_1p.setString("POINTS: " + std::to_string(_1p_points));
             score_x1p.setString("X" + std::to_string(reward_counter_1p));
+            movement_counter_1p_text.setString("Movement: " + std::to_string(movementCounter_1p));
             window.draw(point_1p);
             window.draw(score_x1p);
+            window.draw(movement_counter_1p_text);
 
             if (gameMode == TWO_PLAYER)
             {
                 point_2p.setString("POINTS: " + std::to_string(_2p_points));
                 score_x2p.setString("X" + std::to_string(reward_counter_2p));
+                movement_counter_2p_text.setString("Movement: " + std::to_string(movementCounter_2p));
 
                 window.draw(point_2p);
                 window.draw(score_x2p);
+                window.draw(movement_counter_2p_text);
             }
 
             if (playModeClock.getElapsedTime().asSeconds() == 0 || !playModeClock_clockRunning) // Restart clock only once

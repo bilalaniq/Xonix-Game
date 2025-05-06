@@ -427,10 +427,10 @@ void reward_p2()
     }
 
     static int nextPowerUpThreshold = 50;
-    if (_1p_points >= nextPowerUpThreshold)
+    if (_2p_points >= nextPowerUpThreshold)
     {
-        power_up_inventory_1p++;
-        std::cout << "Player 1 earned a power-up! Total: " << power_up_inventory_1p << std::endl;
+        power_up_inventory_2p++;
+        std::cout << "Player 2 earned a power-up! Total: " << power_up_inventory_2p << std::endl;
         nextPowerUpThreshold += 30;
     }
 
@@ -640,7 +640,6 @@ int main()
     score_x1p.setString("0");
     score_x1p.setStyle(sf::Text::Bold);
 
-
     sf::Text movement_counter_1p_text;
     movement_counter_1p_text.setFont(font);
     movement_counter_1p_text.setCharacterSize(25);
@@ -648,7 +647,6 @@ int main()
     movement_counter_1p_text.setPosition(10, 70);
     movement_counter_1p_text.setString("0");
     movement_counter_1p_text.setStyle(sf::Text::Bold);
-
 
     sf::Text score_x2p;
     score_x2p.setFont(font);
@@ -673,8 +671,6 @@ int main()
     movement_counter_2p_text.setPosition(815, 70);
     movement_counter_2p_text.setString("0");
     movement_counter_2p_text.setStyle(sf::Text::Bold);
-
-
 
     sf::Text playElapsedTimeText;
     playElapsedTimeText.setFont(font);

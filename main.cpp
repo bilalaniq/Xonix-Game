@@ -1,11 +1,11 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/Audio.hpp>
 #include <time.h>
 #include <cmath>
 #include <cstdlib>
 #include <string>
 #include <cstring>
-#include <SFML/Window.hpp>
-#include <SFML/Audio.hpp>
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -88,9 +88,6 @@ const int N = 55;
 
 int grid[M][N] = {0};
 int ts = 18;
-
-size_t score_1p = 0;
-size_t score_2p = 0;
 
 struct Enemy
 {
@@ -235,7 +232,7 @@ void loadScoresFromFile(ScoreEntry scores[], int &count, const std::string &file
     if (!file)
     {
         std::cerr << "File not found. Creating a new file: " << filename << std::endl;
-        std::ofstream newFile(filename); // Create the file
+        std::ofstream newFile(filename);
         if (!newFile)
         {
             std::cerr << "Error: Could not create file " << filename << "!" << std::endl;
@@ -379,6 +376,7 @@ void reward_p1()
     {
         _1p_points += tiles_covered_1p * 2;
         reward_counter_1p++;
+
         std::cout << "Reward 1: " << reward_counter_1p << " (×2 points)" << std::endl;
     }
     else if (tiles_covered_1p >= 5 && reward_counter_1p > 3 && reward_counter_1p <= 5)
@@ -640,7 +638,7 @@ int main()
     score_x1p.setString("0");
     score_x1p.setStyle(sf::Text::Bold);
 
-    sf::Text movement_counter_1p_text;
+    sf::Text movement_counter_1p_text; // help
     movement_counter_1p_text.setFont(font);
     movement_counter_1p_text.setCharacterSize(25);
     movement_counter_1p_text.setFillColor(sf::Color(255, 0, 0));
@@ -862,42 +860,23 @@ int main()
 
                 if (gameState == MENU)
                 {
-                    if (start_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+
+                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                    if (start_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                     {
                         button_sound.play();
                         gameState = PLAY;
                     }
-
-                    else if (mode_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (mode_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                     {
                         button_sound.play();
                         gameState = MODES;
                     }
-                    else if (stop_button_text.getGlobalBounds().contains((float)mousePos.x, (float)mousePos.y))
+                    else if (highscore_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
                     {
                         button_sound.play();
-                        window.close();
-                    }
-
-                    if (e.type == sf::Event::MouseButtonPressed && e.mouseButton.button == sf::Mouse::Left)
-                    {
-                        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-                        if (start_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            button_sound.play();
-                            gameState = PLAY;
-                        }
-                        else if (mode_button_text.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            button_sound.play();
-                            gameState = MODES;
-                        }
-                        else if (highscore_button.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))
-                        {
-                            button_sound.play();
-                            gameState = highscore;
-                        }
+                        gameState = highscore;
                     }
                 }
                 else if (gameState == MODES)
@@ -1114,13 +1093,10 @@ int main()
 
         if (gameState == MENU)
         {
-            sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-
-            const float hoverScale = 0.52f;
-            const float normalScale = 0.5f;
 
             // Draw the menu elements
-            window.clear(sf::Color::White);
+
+            window.clear();
             window.draw(menu_background);
 
             window.draw(menu_text);
@@ -1460,9 +1436,13 @@ int main()
                 if (y > M - 1)
                     y = M - 1;
 
-                if ((x != prevX || y != prevY) && grid[y][x] != 1)
+                if ((x != prevX || y != prevY))
                 {
                     movementCounter_1p++;
+                }
+
+                if ((x != prevX || y != prevY) && grid[y][x] != 1)
+                {
 
                     tiles_covered_1p++;
                     movement_sound.play();
@@ -1522,9 +1502,13 @@ int main()
                     if (y_2 > M - 1)
                         y_2 = M - 1;
 
-                    if ((x_2 != prevX_2 || y_2 != prevY_2) && grid[y_2][x_2] != 1)
+                    if (x_2 != prevX_2 || y_2 != prevY_2)
                     {
                         movementCounter_2p++;
+                    }
+
+                    if ((x_2 != prevX_2 || y_2 != prevY_2) && grid[y_2][x_2] != 1)
+                    {
                         tiles_covered_2p++;
                         movement_sound.play();
                     }
@@ -1627,8 +1611,6 @@ int main()
                             tiles_covered_1p++;
                         }
 
-                movementCounter_1p = 0;
-
                 reward_p1();
             }
 
@@ -1656,7 +1638,6 @@ int main()
                             tiles_covered_2p++;
                         }
 
-                movementCounter_2p = 0;
                 reward_p2();
             }
         }
